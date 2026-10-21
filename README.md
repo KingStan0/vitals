@@ -1,8 +1,14 @@
 # vitals
 
+[![ci](https://github.com/KingStan0/vitals/actions/workflows/ci.yml/badge.svg)](https://github.com/KingStan0/vitals/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/KingStan0/vitals?label=download)](https://github.com/KingStan0/vitals/releases/latest)
+
 A fast, open-source hardware monitor for Windows, built for the terminal. One
 small binary gives you a live dashboard, one-shot JSON snapshots, streaming
 NDJSON, CSV recording, and a raw sensor dump you can attach to bug reports.
+
+**[Download for Windows x64](https://github.com/KingStan0/vitals/releases/latest)**
+— no .NET required.
 
 - **Live TUI** with CPU, per-core load, GPU, memory, per-volume disk usage,
   disk/network throughput, temperatures, fans and top processes.
@@ -15,7 +21,8 @@ NDJSON, CSV recording, and a raw sensor dump you can attach to bug reports.
 
 ## Install (no .NET required)
 
-1. Open the repository's **Releases** page and download `vitals-win-x64.zip`.
+1. Open the [latest release](https://github.com/KingStan0/vitals/releases/latest)
+   and download `vitals-win-x64.zip`.
 2. Extract it anywhere, for example `%LOCALAPPDATA%\vitals`. Do not run it from
    inside the zip.
 3. Optional: install [PawnIO](https://pawnio.eu) if you want CPU package and
@@ -95,7 +102,7 @@ Disk throughput needs an elevated process; CPU/motherboard sensors do too.
 Requires the [.NET 8 SDK](https://dot.net).
 
 ```powershell
-git clone <repository-url> vitals
+git clone https://github.com/KingStan0/vitals.git vitals
 cd vitals
 dotnet build -c Release
 dotnet run --project src/Vitals -- snapshot

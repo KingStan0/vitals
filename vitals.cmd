@@ -2,7 +2,9 @@
 setlocal
 set "ROOT=%~dp0"
 
-set "EXE=%ROOT%dist\vitals.exe"
+rem Release zip: exe sits next to this launcher.
+set "EXE=%ROOT%vitals.exe"
+if not exist "%EXE%" set "EXE=%ROOT%dist\vitals.exe"
 if not exist "%EXE%" set "EXE=%ROOT%src\Vitals\bin\Release\net8.0-windows\vitals.exe"
 if not exist "%EXE%" set "EXE=%ROOT%src\Vitals\bin\Debug\net8.0-windows\vitals.exe"
 

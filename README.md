@@ -13,6 +13,37 @@ NDJSON, CSV recording, and a raw sensor dump you can attach to bug reports.
 - **Small and efficient**: one sampling thread, no per-widget polling, and a
   single-file self-contained publish.
 
+## Install (no .NET required)
+
+1. Open the repository's **Releases** page and download `vitals-win-x64.zip`.
+2. Extract it anywhere, for example `%LOCALAPPDATA%\vitals`. Do not run it from
+   inside the zip.
+3. Optional: install [PawnIO](https://pawnio.eu) if you want CPU package and
+   motherboard temperatures/power. `vitals` works without it.
+4. Double-click `vitals.cmd`, or open a terminal in that folder:
+
+```powershell
+.\vitals.cmd                  # dashboard; asks for admin via UAC
+.\vitals.exe snapshot --json  # scripted, no elevation needed
+```
+
+`vitals.cmd` gives the dashboard administrator rights because CPU and
+motherboard sensors require them. Running `vitals.exe` directly still gives you
+CPU load, GPU, memory, disks, network and usually GPU temperatures, with missing
+readings shown as `n/a`.
+
+The zip is accompanied by a `.sha256` file. Verify the download with:
+
+```powershell
+Get-FileHash .\vitals-win-x64.zip -Algorithm SHA256
+Get-Content .\vitals-win-x64.zip.sha256
+```
+
+The binary is not code-signed, so Windows SmartScreen may show "Windows
+protected your PC". Choose **More info → Run anyway**, or build from source.
+Some antivirus products also flag tools that read hardware sensors; the full
+source is in this repository.
+
 ## Dashboard
 
 ```text
@@ -59,10 +90,12 @@ q quit   space pause   r peaks   s sort   t theme   e export   [ ] interval   in
 GPU sensors come from LibreHardwareMonitor and usually work without PawnIO.
 Disk throughput needs an elevated process; CPU/motherboard sensors do too.
 
-## Quick start
+## Build from source
+
+Requires the [.NET 8 SDK](https://dot.net).
 
 ```powershell
-git clone <your-fork-url> vitals
+git clone <repository-url> vitals
 cd vitals
 dotnet build -c Release
 dotnet run --project src/Vitals -- snapshot
@@ -75,9 +108,15 @@ pwsh -File scripts/publish.ps1
 .\dist\vitals.exe snapshot --json
 ```
 
-For the interactive dashboard, run `vitals.cmd`. It finds the published exe (or
-a Release/Debug build), checks whether the current console is elevated, and
-relaunches through UAC only when needed:
+Build the release zip locally:
+
+```powershell
+pwsh -File scripts/package.ps1 -Version dev
+```
+
+For the interactive dashboard from a source build, run `vitals.cmd`. It checks
+for a release exe, a published `dist` build, or a Release/Debug build, then
+relaunches through UAC only when the current console is not elevated.
 
 ```powershell
 .\vitals.cmd

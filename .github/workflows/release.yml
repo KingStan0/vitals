@@ -32,7 +32,9 @@ jobs:
         run: |
           $zip = Get-ChildItem dist/vitals-win-x64.zip
           $hash = Get-ChildItem dist/vitals-win-x64.zip.sha256
+          $notes = 'Windows x64 build. Download vitals-win-x64.zip, extract it, and run vitals.cmd. The exe is unsigned, so SmartScreen may warn. See the README for PawnIO, sensors and CLI usage.'
           gh release create $env:GITHUB_REF_NAME $zip.FullName $hash.FullName `
             --title "vitals $env:GITHUB_REF_NAME" `
+            --notes $notes `
             --generate-notes `
             --verify-tag

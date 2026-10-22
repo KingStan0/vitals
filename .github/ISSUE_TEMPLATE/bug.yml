@@ -1,0 +1,74 @@
+name: Bug report
+description: Report a crash, wrong reading, layout bug or missing sensor.
+title: "[bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. For security issues, use the private advisory
+        link in SECURITY.md instead of a public issue.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `vitals --version`
+      placeholder: vitals 0.2.0
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Hardware and Windows version
+      description: CPU, GPU, motherboard, storage and Windows build
+      placeholder: Ryzen 5 5600G, RX 5700, B450M-A PRO MAX II, Windows 11 26H2 26300
+    validations:
+      required: true
+  - type: dropdown
+    id: elevation
+    attributes:
+      label: Was the process elevated?
+      options:
+        - Yes (launched through vitals.cmd or an admin terminal)
+        - No (ran vitals.exe directly)
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the exact command or keys you used.
+      placeholder: |
+        1. Run .\vitals.cmd
+        2. Press ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+      description: A screenshot is useful for layout problems.
+    validations:
+      required: true
+  - type: textarea
+    id: sensors
+    attributes:
+      label: Sensor dump
+      description: |
+        Run `vitals sensors --json > sensors.json` and attach the file. Review
+        it first; it contains sensor names and values, not files or passwords.
+      render: json
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues for the same problem.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

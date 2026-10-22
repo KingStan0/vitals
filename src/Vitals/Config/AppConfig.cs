@@ -18,6 +18,17 @@ public sealed class Threshold
     public double Warn { get; set; }
 
     public double Crit { get; set; }
+
+    internal void Normalize()
+    {
+        Warn = Math.Clamp(Warn, 0, 200);
+        Crit = Math.Clamp(Crit, 0, 200);
+
+        if (Crit <= Warn && Warn < 200)
+        {
+            Crit = Math.Min(Warn + 10, 200);
+        }
+    }
 }
 
 public sealed class Thresholds
@@ -96,6 +107,19 @@ public sealed class AppConfig
         ProcessIntervalMs = Math.Clamp(ProcessIntervalMs, 250, 60_000);
         ProcessCount = Math.Clamp(ProcessCount, 3, 64);
         HistorySeconds = Math.Clamp(HistorySeconds, 30, 86_400);
+
+        Thresholds ??= new Thresholds();
+        Thresholds.CpuTemp ??= new Threshold(85, 95);
+        Thresholds.GpuEdge ??= new Threshold(80, 90);
+        Thresholds.GpuHotspot ??= new Threshold(95, 105);
+        Thresholds.GpuMemory ??= new Threshold(90, 100);
+        Thresholds.Memory ??= new Threshold(85, 95);
+
+        Thresholds.CpuTemp.Normalize();
+        Thresholds.GpuEdge.Normalize();
+        Thresholds.GpuHotspot.Normalize();
+        Thresholds.GpuMemory.Normalize();
+        Thresholds.Memory.Normalize();
     }
 
     public string SaveExample()

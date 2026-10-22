@@ -2,17 +2,22 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <RootNamespace>Vitals</RootNamespace>
     <AssemblyName>vitals</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <LangVersion>12</LangVersion>
     <InvariantGlobalization>true</InvariantGlobalization>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>KingStan</Authors>
+    <Company>vitals contributors</Company>
+    <Product>vitals</Product>
+    <Copyright>Copyright (c) 2026 vitals contributors</Copyright>
     <Description>A fast, open-source Windows TUI for CPU, GPU, memory and temperature monitoring.</Description>
+    <RepositoryUrl>https://github.com/KingStan0/vitals</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <ApplicationIcon>..\..\assets\vitals.ico</ApplicationIcon>
     <IsPackable>false</IsPackable>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
@@ -20,6 +25,10 @@
   <ItemGroup>
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.6" />
     <PackageReference Include="Spectre.Console" Version="0.57.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Vitals.Tests" />
   </ItemGroup>
 
 </Project>

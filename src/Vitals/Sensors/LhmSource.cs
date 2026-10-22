@@ -30,7 +30,7 @@ public sealed class LhmSource : ISensorSource
 
     public void Initialize()
     {
-        Elevated = IsElevated();
+        Elevated = IsProcessElevated();
         PawnIoInstalled = IsPawnIoInstalled();
 
         try
@@ -82,7 +82,7 @@ public sealed class LhmSource : ISensorSource
             }
 
             ReadCpu(builder);
-            ReadGpu(builder);
+            ReadGpus(builder);
             ReadTemperatures(builder);
             ReadCatalog(builder);
         }
@@ -153,33 +153,38 @@ public sealed class LhmSource : ISensorSource
         }
     }
 
-    private void ReadGpu(SnapshotBuilder builder)
+    private void ReadGpus(SnapshotBuilder builder)
     {
-        var gpu = _all.FirstOrDefault(h => h.HardwareType is HardwareType.GpuAmd
-            or HardwareType.GpuNvidia
-            or HardwareType.GpuIntel);
-
-        if (gpu is null)
+        foreach (var gpu in _all.Where(h => h.HardwareType is HardwareType.GpuAmd
+                     or HardwareType.GpuNvidia
+                     or HardwareType.GpuIntel))
         {
-            return;
+            // Use strict matches for VRAM: the generic fallback could otherwise
+            // report "GPU Memory Used" as the total and corrupt primary-GPU choice.
+            var usedMb = Value(PickStrict(gpu, SensorType.SmallData, "GPU Memory Used", "D3D Dedicated Memory Used"));
+            var totalMb = Value(PickStrict(gpu, SensorType.SmallData, "GPU Memory Total"));
+
+            builder.Gpus.Add(new GpuSample(
+                CleanName(gpu.Name),
+                Value(Pick(gpu, SensorType.Load, "GPU Core", "GPU Total", "D3D 3D")),
+                NonZero(Value(Pick(gpu, SensorType.Temperature, "GPU Core", "GPU Temperature"))),
+                NonZero(Value(PickStrict(gpu, SensorType.Temperature, "GPU Hot Spot", "Hot Spot", "Hotspot", "Junction"))),
+                NonZero(Value(PickStrict(gpu, SensorType.Temperature, "GPU Memory Junction", "Memory Junction", "GPU Memory"))),
+                NonZero(Value(Pick(gpu, SensorType.Fan, "GPU Fan"))),
+                NonZero(Value(Pick(gpu, SensorType.Control, "GPU Fan"))),
+                NonZero(Value(Pick(gpu, SensorType.Power, "GPU Package", "GPU Power", "GPU Core"))),
+                NonZero(Value(Pick(gpu, SensorType.Clock, "GPU Core", "GPU Clock"))),
+                NonZero(Value(PickStrict(gpu, SensorType.Clock, "GPU Memory", "Memory Clock"))),
+                usedMb is null ? null : usedMb * 1024 * 1024,
+                totalMb is null ? null : totalMb * 1024 * 1024));
         }
 
-        var usedMb = Value(Pick(gpu, SensorType.SmallData, "GPU Memory Used", "D3D Dedicated Memory Used"));
-        var totalMb = Value(Pick(gpu, SensorType.SmallData, "GPU Memory Total"));
-
-        builder.Gpu = new GpuSample(
-            CleanName(gpu.Name),
-            Value(Pick(gpu, SensorType.Load, "GPU Core", "GPU Total", "D3D 3D")),
-            NonZero(Value(Pick(gpu, SensorType.Temperature, "GPU Core", "GPU Temperature"))),
-            NonZero(Value(PickStrict(gpu, SensorType.Temperature, "GPU Hot Spot", "Hot Spot", "Hotspot", "Junction"))),
-            NonZero(Value(PickStrict(gpu, SensorType.Temperature, "GPU Memory Junction", "Memory Junction", "GPU Memory"))),
-            NonZero(Value(Pick(gpu, SensorType.Fan, "GPU Fan"))),
-            NonZero(Value(Pick(gpu, SensorType.Control, "GPU Fan"))),
-            NonZero(Value(Pick(gpu, SensorType.Power, "GPU Package", "GPU Power", "GPU Core"))),
-            NonZero(Value(Pick(gpu, SensorType.Clock, "GPU Core", "GPU Clock"))),
-            NonZero(Value(PickStrict(gpu, SensorType.Clock, "GPU Memory", "Memory Clock"))),
-            usedMb is null ? null : usedMb * 1024 * 1024,
-            totalMb is null ? null : totalMb * 1024 * 1024);
+        // Prefer the discrete GPU for the headline panel when a laptop exposes
+        // both an integrated and a discrete adapter. All adapters remain in Gpus.
+        builder.Gpu = builder.Gpus
+            .OrderByDescending(gpu => gpu.MemoryTotalBytes ?? 0)
+            .ThenByDescending(gpu => gpu.PowerW ?? 0)
+            .FirstOrDefault();
     }
 
     private void ReadTemperatures(SnapshotBuilder builder)
@@ -190,10 +195,7 @@ public sealed class LhmSource : ISensorSource
             {
                 var sensor = hardware.Sensors.FirstOrDefault(s =>
                     s.SensorType == SensorType.Temperature &&
-                    s.Value is > 0 &&
-                    !s.Name.Contains("Warning", StringComparison.OrdinalIgnoreCase) &&
-                    !s.Name.Contains("Critical", StringComparison.OrdinalIgnoreCase) &&
-                    !s.Name.Contains("Max", StringComparison.OrdinalIgnoreCase));
+                    IsUsableStorageTemperature(s.Name, s.Value));
 
                 if (sensor?.Value is float temp)
                 {
@@ -289,7 +291,13 @@ public sealed class LhmSource : ISensorSource
 
     private static double? NonZero(double? value) => value is > 0 ? value : null;
 
-    private static int ParseCoreIndex(string name)
+    internal static bool IsUsableStorageTemperature(string name, double? value) =>
+        value is > 0 &&
+        !name.Contains("Warning", StringComparison.OrdinalIgnoreCase) &&
+        !name.Contains("Critical", StringComparison.OrdinalIgnoreCase) &&
+        !name.Contains("Max", StringComparison.OrdinalIgnoreCase);
+
+    internal static int ParseCoreIndex(string name)
     {
         var hash = name.IndexOf('#');
         if (hash < 0)
@@ -353,7 +361,7 @@ public sealed class LhmSource : ISensorSource
         _ => string.Empty,
     };
 
-    private static bool IsElevated()
+    internal static bool IsProcessElevated()
     {
         try
         {
@@ -366,7 +374,7 @@ public sealed class LhmSource : ISensorSource
         }
     }
 
-    private static bool IsPawnIoInstalled()
+    internal static bool IsPawnIoInstalled()
     {
         try
         {

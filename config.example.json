@@ -1,0 +1,15 @@
+{
+  "intervalMs": 1000,
+  "processIntervalMs": 2000,
+  "processCount": 8,
+  "historySeconds": 300,
+  "ascii": false,
+  "theme": "default",
+  "thresholds": {
+    "cpuTemp": { "warn": 85, "crit": 95 },
+    "gpuEdge": { "warn": 80, "crit": 90 },
+    "gpuHotspot": { "warn": 95, "crit": 105 },
+    "gpuMemory": { "warn": 90, "crit": 100 },
+    "memory": { "warn": 85, "crit": 95 }
+  }
+}

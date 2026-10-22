@@ -1,0 +1,268 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/KingStan0/vitals/main/docs/schema/snapshot.schema.json",
+  "title": "vitals snapshot",
+  "description": "Schema for `vitals snapshot --json` and each NDJSON object from `vitals watch --json`.",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "cpuLoadPercent",
+    "cpuTempC",
+    "cpuPowerW",
+    "cpuClockMhz",
+    "cores",
+    "gpu",
+    "gpus",
+    "memory",
+    "volumes",
+    "diskReadBytesPerSecond",
+    "diskWriteBytesPerSecond",
+    "netReceiveBytesPerSecond",
+    "netSendBytesPerSecond",
+    "processes",
+    "temps",
+    "readings",
+    "status"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "cpuLoadPercent": {
+      "type": "number"
+    },
+    "cpuTempC": {
+      "type": ["number", "null"]
+    },
+    "cpuPowerW": {
+      "type": ["number", "null"]
+    },
+    "cpuClockMhz": {
+      "type": ["number", "null"]
+    },
+    "cores": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/core"
+      }
+    },
+    "gpu": {
+      "anyOf": [
+        { "$ref": "#/$defs/gpu" },
+        { "type": "null" }
+      ],
+      "description": "Primary adapter shown in the dashboard. Null when no GPU is found."
+    },
+    "gpus": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/gpu"
+      },
+      "description": "Every adapter exposed by the sensor backend."
+    },
+    "memory": {
+      "anyOf": [
+        { "$ref": "#/$defs/memory" },
+        { "type": "null" }
+      ]
+    },
+    "volumes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/volume"
+      }
+    },
+    "diskReadBytesPerSecond": {
+      "type": "number"
+    },
+    "diskWriteBytesPerSecond": {
+      "type": "number"
+    },
+    "netReceiveBytesPerSecond": {
+      "type": ["number", "null"]
+    },
+    "netSendBytesPerSecond": {
+      "type": ["number", "null"]
+    },
+    "processes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/process"
+      }
+    },
+    "temps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/temp"
+      }
+    },
+    "readings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reading"
+      }
+    },
+    "status": {
+      "$ref": "#/$defs/status"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "core": {
+      "type": "object",
+      "required": ["index", "loadPercent", "clockMhz", "tempC"],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "loadPercent": { "type": ["number", "null"] },
+        "clockMhz": { "type": ["number", "null"] },
+        "tempC": { "type": ["number", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "gpu": {
+      "type": "object",
+      "required": [
+        "name",
+        "loadPercent",
+        "edgeC",
+        "hotspotC",
+        "memoryTempC",
+        "fanRpm",
+        "fanPercent",
+        "powerW",
+        "clockMhz",
+        "memoryClockMhz",
+        "memoryUsedBytes",
+        "memoryTotalBytes"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "loadPercent": { "type": ["number", "null"] },
+        "edgeC": { "type": ["number", "null"] },
+        "hotspotC": { "type": ["number", "null"] },
+        "memoryTempC": { "type": ["number", "null"] },
+        "fanRpm": { "type": ["number", "null"] },
+        "fanPercent": { "type": ["number", "null"] },
+        "powerW": { "type": ["number", "null"] },
+        "clockMhz": { "type": ["number", "null"] },
+        "memoryClockMhz": { "type": ["number", "null"] },
+        "memoryUsedBytes": { "type": ["number", "null"] },
+        "memoryTotalBytes": { "type": ["number", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "memory": {
+      "type": "object",
+      "required": [
+        "totalBytes",
+        "availableBytes",
+        "commitBytes",
+        "commitLimitBytes",
+        "cachedBytes",
+        "usedBytes",
+        "usedPercent",
+        "commitPercent"
+      ],
+      "properties": {
+        "totalBytes": { "type": "number" },
+        "availableBytes": { "type": "number" },
+        "commitBytes": { "type": "number" },
+        "commitLimitBytes": { "type": "number" },
+        "cachedBytes": { "type": "number" },
+        "usedBytes": { "type": "number" },
+        "usedPercent": { "type": "number" },
+        "commitPercent": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "volume": {
+      "type": "object",
+      "required": ["name", "label", "totalBytes", "freeBytes", "usedPercent"],
+      "properties": {
+        "name": { "type": "string" },
+        "label": { "type": "string" },
+        "totalBytes": { "type": "number" },
+        "freeBytes": { "type": "number" },
+        "usedPercent": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "process": {
+      "type": "object",
+      "required": ["pid", "name", "cpuPercent", "workingSetBytes"],
+      "properties": {
+        "pid": { "type": "integer" },
+        "name": { "type": "string" },
+        "cpuPercent": { "type": "number" },
+        "workingSetBytes": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "temp": {
+      "type": "object",
+      "required": ["label", "celsius", "group"],
+      "properties": {
+        "label": { "type": "string" },
+        "celsius": { "type": "number" },
+        "group": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "reading": {
+      "type": "object",
+      "required": ["id", "source", "hardware", "name", "kind", "value", "unit"],
+      "properties": {
+        "id": { "type": "string" },
+        "source": { "type": "string" },
+        "hardware": { "type": "string" },
+        "name": { "type": "string" },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "Load",
+            "Temperature",
+            "Clock",
+            "Power",
+            "Voltage",
+            "Current",
+            "Fan",
+            "Control",
+            "Data",
+            "Throughput",
+            "Level",
+            "Factor",
+            "Time",
+            "Other"
+          ]
+        },
+        "value": { "type": ["number", "null"] },
+        "unit": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "status": {
+      "type": "object",
+      "required": [
+        "elevated",
+        "lhmAvailable",
+        "lhmError",
+        "pawnIoInstalled",
+        "notes",
+        "appVersion"
+      ],
+      "properties": {
+        "elevated": { "type": "boolean" },
+        "lhmAvailable": { "type": "boolean" },
+        "lhmError": { "type": ["string", "null"] },
+        "pawnIoInstalled": { "type": "boolean" },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "appVersion": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

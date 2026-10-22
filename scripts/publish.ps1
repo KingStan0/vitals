@@ -23,7 +23,7 @@ if (-not $dotnet) {
     }
 }
 if (-not $dotnet) {
-    throw 'The .NET 8 SDK was not found. Install it from https://dot.net and try again.'
+    throw 'The .NET 10 SDK was not found. Install it from https://dot.net and try again.'
 }
 
 Write-Host "publishing vitals ($Configuration, $Runtime) -> $Output"
@@ -44,8 +44,17 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Copy-Item (Join-Path $root 'README.md') $Output -Force
+Copy-Item (Join-Path $root 'CHANGELOG.md') $Output -Force
 Copy-Item (Join-Path $root 'LICENSE') $Output -Force
 Copy-Item (Join-Path $root 'THIRD-PARTY-NOTICES.md') $Output -Force
+Copy-Item (Join-Path $root 'licenses') $Output -Recurse -Force
+Copy-Item (Join-Path $root 'assets') $Output -Recurse -Force
+Copy-Item (Join-Path $root 'config.example.json') $Output -Force -ErrorAction SilentlyContinue
+
+$docs = Join-Path $Output 'docs'
+New-Item -ItemType Directory -Path (Join-Path $docs 'schema') -Force | Out-Null
+Copy-Item (Join-Path $root 'docs\troubleshooting.md') $docs -Force
+Copy-Item (Join-Path $root 'docs\schema\snapshot.schema.json') (Join-Path $docs 'schema') -Force
 
 $exe = Join-Path $Output 'vitals.exe'
 $size = [math]::Round((Get-Item $exe).Length / 1MB, 1)

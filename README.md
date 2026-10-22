@@ -3,6 +3,8 @@
 [![ci](https://github.com/KingStan0/vitals/actions/workflows/ci.yml/badge.svg)](https://github.com/KingStan0/vitals/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/KingStan0/vitals?label=download)](https://github.com/KingStan0/vitals/releases/latest)
 
+![vitals — fast, open-source Windows hardware monitoring](assets/social-preview.png)
+
 A fast, open-source hardware monitor for Windows, built for the terminal. One
 small binary gives you a live dashboard, one-shot JSON snapshots, streaming
 NDJSON, CSV recording, and a raw sensor dump you can attach to bug reports.
@@ -13,6 +15,8 @@ NDJSON, CSV recording, and a raw sensor dump you can attach to bug reports.
 - **Live TUI** with CPU, per-core load, GPU, memory, per-volume disk usage,
   disk/network throughput, temperatures, fans and top processes.
 - **Scriptable**: `snapshot --json`, `watch --json`, `export` to CSV.
+- **Multi-GPU aware**: all adapters are exported in JSON; the dashboard shows
+  the primary (largest / most capable) GPU.
 - **Driver-aware, not driver-bundling**: detects PawnIO and tells you what is
   missing. It never downloads or installs a driver.
 - **No telemetry, no outbound connections.** Sensor data stays on your machine.
@@ -22,9 +26,12 @@ NDJSON, CSV recording, and a raw sensor dump you can attach to bug reports.
 ## Install (no .NET required)
 
 1. Open the [latest release](https://github.com/KingStan0/vitals/releases/latest)
-   and download `vitals-win-x64.zip`.
+   and download `vitals-<version>-win-x64.zip`.
 2. Extract it anywhere, for example `%LOCALAPPDATA%\vitals`. Do not run it from
-   inside the zip.
+   inside the zip. The zip contains `vitals.exe`, `vitals.cmd`, this README,
+   `CHANGELOG.md`, `LICENSE`, `THIRD-PARTY-NOTICES.md`, full dependency license
+   texts in `licenses/`, `config.example.json`, the JSON schema under `docs/`,
+   and the icon/banner assets.
 3. Optional: install [PawnIO](https://pawnio.eu) if you want CPU package and
    motherboard temperatures/power. `vitals` works without it.
 4. Double-click `vitals.cmd`, or open a terminal in that folder:
@@ -34,16 +41,24 @@ NDJSON, CSV recording, and a raw sensor dump you can attach to bug reports.
 .\vitals.exe snapshot --json  # scripted, no elevation needed
 ```
 
-`vitals.cmd` gives the dashboard administrator rights because CPU and
-motherboard sensors require them. Running `vitals.exe` directly still gives you
-CPU load, GPU, memory, disks, network and usually GPU temperatures, with missing
-readings shown as `n/a`.
+`vitals.cmd` only requests administrator rights for the interactive dashboard.
+Headless commands (`snapshot`, `watch`, `export`, `sensors`, `--help`,
+`--version`) stay in the current console so pipes and redirects keep working.
+Running `vitals.exe` directly still gives you CPU load, GPU, memory, disks,
+network and usually GPU temperatures, with missing readings shown as `n/a`.
 
-The zip is accompanied by a `.sha256` file. Verify the download with:
+### Verifying a release
+
+Each release publishes a versioned zip and a matching `.sha256` file, plus a
+signed build-provenance attestation. From the folder containing the download:
 
 ```powershell
-Get-FileHash .\vitals-win-x64.zip -Algorithm SHA256
-Get-Content .\vitals-win-x64.zip.sha256
+$zip = Get-ChildItem .\vitals-*-win-x64.zip | Select-Object -First 1
+Get-FileHash $zip.FullName -Algorithm SHA256
+Get-Content "$($zip.FullName).sha256"
+
+# Requires the GitHub CLI: https://cli.github.com
+gh attestation verify $zip.FullName --repo KingStan0/vitals
 ```
 
 The binary is not code-signed, so Windows SmartScreen may show "Windows
@@ -54,7 +69,7 @@ source is in this repository.
 ## Dashboard
 
 ```text
-DESKTOP-GGRKBQ6  ·  AMD Ryzen 5 5600G with Radeon Graphics  ·  RX 5700  ·  Windows 10 Pro 26H2 (26300)  ·  up 0d 01h 18m
+DESKTOP-GGRKBQ6  ·  AMD Ryzen 5 5600G with Radeon Graphics  ·  RX 5700  ·  Windows 11 Pro 26H2 (26300)  ·  up 0d 01h 18m
 live
 board Micro-Star International Co., Ltd. B450M-A PRO MAX II (MS-7C52)  ·  sampling 1000 ms
 ╭─CPU──────────────────────────────────────────────────────────────╮  ╭─GPU───────────────────────────────────────────╮
@@ -89,7 +104,7 @@ q quit   space pause   r peaks   s sort   t theme   e export   [ ] interval   in
 - Windows 10 1809+ or Windows 11, x64.
 - [Windows Terminal](https://aka.ms/terminal) recommended for Unicode box
   drawing and true colour.
-- To build: the [.NET 8 SDK](https://dot.net).
+- To build: the [.NET 10 SDK](https://dot.net) (10.0.402 or newer).
 - Optional, for CPU and motherboard temperatures/power: a signed
   [PawnIO](https://pawnio.eu) installation. `vitals` detects it and never bundles
   or installs it for you.
@@ -99,7 +114,8 @@ Disk throughput needs an elevated process; CPU/motherboard sensors do too.
 
 ## Build from source
 
-Requires the [.NET 8 SDK](https://dot.net).
+Requires the [.NET 10 SDK](https://dot.net). The repository pins SDK 10.0.402
+in `global.json`.
 
 ```powershell
 git clone https://github.com/KingStan0/vitals.git vitals
@@ -144,6 +160,7 @@ vitals export                record CSV until Ctrl+C (auto-named file)
 vitals export --out run.csv  record to a specific file
 vitals sensors               every raw sensor LHM exposes
 vitals sensors --json        raw sensor array, useful in bug reports
+vitals --version             print the version and exit
 vitals --help
 ```
 
@@ -159,6 +176,7 @@ Options:
     --no-color         disable colour
     --render-once      render one dashboard frame and exit (testing)
     --debug            verbose errors
+    --version          print the version and exit
 -h, --help
 ```
 
@@ -225,20 +243,22 @@ The dashboard adapts below 100 columns by stacking panels in a single column.
 ### JSON snapshot
 
 `vitals snapshot --json` emits one camelCase object. Values that the hardware or
-driver cannot provide are `null`; no zero-filled placeholders. The example below
-is abridged: arrays have more entries and `memory` also includes derived fields
+driver cannot provide are `null`; no zero-filled placeholders. Sensor noise is
+rounded to the precision the dashboard uses (temperatures and power to 0.1,
+clocks and bytes to whole numbers, process CPU to 0.01). The example below is
+abridged: arrays have more entries and `memory` also includes derived fields
 such as `usedBytes`, `usedPercent` and `commitBytes`.
 
 ```json
 {
   "timestamp": "2026-10-21T12:34:56.789+02:00",
   "cpuLoadPercent": 21.3,
-  "cpuTempC": 60,
+  "cpuTempC": 60.2,
   "cpuPowerW": 23.4,
   "cpuClockMhz": 3789,
-  "cores": [ { "index": 1, "loadPercent": 100, "clockMhz": 4650, "tempC": null } ],
+  "cores": [ { "index": 0, "loadPercent": 100, "clockMhz": 4650, "tempC": null } ],
   "gpu": {
-    "name": "AMD Radeon RX 5700",
+    "name": "RX 5700",
     "loadPercent": 7,
     "edgeC": 42,
     "hotspotC": 42,
@@ -251,6 +271,22 @@ such as `usedBytes`, `usedPercent` and `commitBytes`.
     "memoryUsedBytes": 773849088,
     "memoryTotalBytes": 8573157376
   },
+  "gpus": [
+    {
+      "name": "RX 5700",
+      "loadPercent": 7,
+      "edgeC": 42,
+      "hotspotC": 42,
+      "memoryTempC": 42,
+      "fanRpm": 1045,
+      "fanPercent": 22,
+      "powerW": 11,
+      "clockMhz": 55,
+      "memoryClockMhz": 716,
+      "memoryUsedBytes": 773849088,
+      "memoryTotalBytes": 8573157376
+    }
+  ],
   "memory": { "totalBytes": 25606051430, "availableBytes": 18100000000 },
   "volumes": [ { "name": "C:", "label": "System", "totalBytes": 511000000000, "freeBytes": 365000000000 } ],
   "diskReadBytesPerSecond": 0,
@@ -260,9 +296,17 @@ such as `usedBytes`, `usedPercent` and `commitBytes`.
   "processes": [ { "pid": 8636, "name": "Discord", "cpuPercent": 1.5, "workingSetBytes": 812000000 } ],
   "temps": [ { "label": "VRM MOS", "celsius": 81.5, "group": "board" } ],
   "readings": [ { "id": "/amdcpu/0/load/0", "source": "lhm", "hardware": "AMD Ryzen 5 5600G", "name": "CPU Total", "kind": "Load", "value": 21.3, "unit": "%" } ],
-  "status": { "elevated": true, "lhmAvailable": true, "lhmError": null, "pawnIoInstalled": true, "notes": [] }
+  "status": { "elevated": true, "lhmAvailable": true, "lhmError": null, "pawnIoInstalled": true, "notes": [], "appVersion": "0.2.0" }
 }
 ```
+
+`gpu` is the primary adapter (the one shown in the dashboard) and is emitted for
+backward compatibility. `gpus` contains every adapter LibreHardwareMonitor
+exposes, so hybrid laptops and multi-GPU desktops can read each device. If no
+adapter is found, `gpu` is `null` and `gpus` is an empty array.
+
+The machine-readable schema is in
+[`docs/schema/snapshot.schema.json`](docs/schema/snapshot.schema.json).
 
 `watch --json` prints the same shape as compact single-line objects, suitable
 for `jq`, log shippers, or an agent tailing the stream.
@@ -297,15 +341,26 @@ unless `--out` is given. The TUI's `e` key exports the session held in memory.
 ## Performance
 
 Sampling is O(sensors) at 1 Hz. There are no timers or polling loops per widget,
-and no allocations for colour markup beyond the rendered frame. To measure
-one-shot latency on your machine:
+and no allocations for colour markup beyond the rendered frame. From a source
+checkout, measure one-shot latency on your machine:
 
 ```powershell
 pwsh -File scripts/bench.ps1
 ```
 
 The benchmark reports min/avg/p95/max for a full snapshot including process
-enumeration.
+enumeration. For steady-state CPU and memory use, run:
+
+```powershell
+pwsh -File scripts/soak.ps1 -Seconds 60
+pwsh -File scripts/soak.ps1 -Seconds 60 -Mode tui   # opens a console window
+```
+
+The headless mode measures the same sampler used by the dashboard. The TUI mode
+includes rendering, but it is stopped with `Stop-Process`, so shutdown cost is
+not included. On the development machine (Ryzen 5 5600G, Windows 11), a 10-second
+headless run averaged about 0.5% of the machine (5.5% of one core) and 86 MB
+working set at 1 Hz; measure your own hardware before optimizing for it.
 
 ## Development
 
@@ -319,6 +374,9 @@ The test project uses xUnit and Spectre.Console.Testing to render the dashboard
 at fixed sizes. Sensor values are hardware-dependent; tests use fixtures, while
 `docs/sensors/` documents the real dumps the mappings were built against.
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and review expectations, and
+[CHANGELOG.md](CHANGELOG.md) for release history.
+
 Layout of the repo:
 
 ```text
@@ -330,15 +388,24 @@ src/Vitals/
   Sensors/      LHM and Win32 sources, P/Invoke, models
   Ui/           dashboard widgets, TUI loop, theme, formatting
 src/Vitals.Tests/
-scripts/        publish and benchmark helpers
+scripts/        publish, package, smoke, benchmark and soak helpers
 docs/sensors/   real sensor maps for specific hardware
+docs/           troubleshooting and JSON schema
 ```
 
 Adding support for a new board or GPU usually means documenting the LHM
 identifiers and, if needed, adjusting the lookup preferences. Include your
 `vitals sensors --json` output in an issue.
 
+## Troubleshooting
+
+Common fixes for SmartScreen, missing temperatures, PawnIO, stale sensors and
+unsupported hardware are in [docs/troubleshooting.md](docs/troubleshooting.md).
+If that does not help, open an issue with `vitals --version` and the output of
+`vitals sensors --json` (redact anything you consider private).
+
 ## License
 
 MIT. See [LICENSE](LICENSE). Third-party notices are in
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md); the release zip also contains
+the full texts under `licenses/`.

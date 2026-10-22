@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
@@ -58,12 +59,10 @@ public static class SystemInfo
             using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
             var product = key?.GetValue("ProductName") as string;
             var display = key?.GetValue("DisplayVersion") as string;
-            var build = key?.GetValue("CurrentBuild") as string;
+            var build = key?.GetValue("CurrentBuildNumber") as string
+                        ?? key?.GetValue("CurrentBuild") as string;
 
-            if (!string.IsNullOrWhiteSpace(product))
-            {
-                return $"{product.Replace("Microsoft ", string.Empty)} {display} ({build})".Trim();
-            }
+            return FormatOsName(product, display, build);
         }
         catch
         {
@@ -71,6 +70,40 @@ public static class SystemInfo
         }
 
         return RuntimeInformation.OSDescription;
+    }
+
+    /// <summary>
+    /// Windows 11 still reports ProductName as "Windows 10 ..." for
+    /// compatibility. The build number is the reliable discriminator.
+    /// </summary>
+    public static string FormatOsName(string? product, string? display, string? build)
+    {
+        product = product?.Replace("Microsoft ", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+
+        if (string.IsNullOrWhiteSpace(product))
+        {
+            return RuntimeInformation.OSDescription;
+        }
+
+        if (int.TryParse(build, NumberStyles.Integer, CultureInfo.InvariantCulture, out var buildNumber) &&
+            buildNumber >= 22000 &&
+            product.StartsWith("Windows 10", StringComparison.OrdinalIgnoreCase))
+        {
+            product = "Windows 11" + product["Windows 10".Length..];
+        }
+
+        var parts = new List<string> { product };
+        if (!string.IsNullOrWhiteSpace(display))
+        {
+            parts.Add(display);
+        }
+
+        if (!string.IsNullOrWhiteSpace(build))
+        {
+            parts.Add($"({build})");
+        }
+
+        return string.Join(" ", parts);
     }
 
     public static string Dot(bool ascii) => ascii ? "|" : "·";

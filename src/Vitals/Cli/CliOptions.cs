@@ -21,6 +21,8 @@ public sealed class CliOptions
 
     public bool ShowHelp { get; private set; }
 
+    public bool ShowVersion { get; private set; }
+
     public int? IntervalMs { get; private set; }
 
     public TimeSpan? Duration { get; private set; }
@@ -44,6 +46,9 @@ public sealed class CliOptions
                 case "-h":
                 case "--help":
                     options.ShowHelp = true;
+                    continue;
+                case "--version":
+                    options.ShowVersion = true;
                     continue;
                 case "--json":
                     options.Json = true;
@@ -206,6 +211,7 @@ public sealed class CliOptions
               --no-color         disable colour
               --render-once      render one dashboard frame and exit (testing)
               --debug            verbose errors
+              --version          print the version and exit
           -h, --help             this text
 
         TUI KEYS

@@ -9,7 +9,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $dist = Join-Path $root 'dist'
 $stage = Join-Path $dist 'vitals-win-x64'
-$zip = Join-Path $dist "vitals-$Runtime.zip"
+$cleanVersion = $Version.TrimStart('v', 'V')
+$zip = Join-Path $dist "vitals-$cleanVersion-$Runtime.zip"
 
 if (Test-Path $stage) {
     Remove-Item $stage -Recurse -Force
@@ -20,9 +21,7 @@ if (Test-Path $stage) {
     -Configuration $Configuration `
     -Output $stage
 
-if ($LASTEXITCODE -ne 0) {
-    throw "publish failed with exit code $LASTEXITCODE"
-}
+& (Join-Path $PSScriptRoot 'smoke.ps1') -Exe (Join-Path $stage 'vitals.exe')
 
 Copy-Item (Join-Path $root 'vitals.cmd') $stage -Force
 

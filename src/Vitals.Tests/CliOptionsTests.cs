@@ -43,6 +43,15 @@ public sealed class CliOptionsTests
     }
 
     [Fact]
+    public void Parses_version_flag()
+    {
+        var options = CliOptions.Parse(new[] { "--version" });
+
+        Assert.True(options.ShowVersion);
+        Assert.Null(options.Error);
+    }
+
+    [Fact]
     public void Rejects_unknown_command()
     {
         var options = CliOptions.Parse(new[] { "frobnicate" });

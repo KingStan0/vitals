@@ -77,7 +77,8 @@ public sealed record SensorStatus(
     bool LhmAvailable,
     string? LhmError,
     bool PawnIoInstalled,
-    IReadOnlyList<string> Notes);
+    IReadOnlyList<string> Notes,
+    string AppVersion);
 
 public sealed record Snapshot(
     DateTimeOffset Timestamp,
@@ -87,6 +88,7 @@ public sealed record Snapshot(
     double? CpuClockMhz,
     IReadOnlyList<CoreSample> Cores,
     GpuSample? Gpu,
+    IReadOnlyList<GpuSample> Gpus,
     MemorySample? Memory,
     IReadOnlyList<VolumeSample> Volumes,
     double DiskReadBytesPerSecond,

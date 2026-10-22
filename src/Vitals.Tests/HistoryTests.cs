@@ -53,6 +53,7 @@ internal static class SnapshotFixture
         CpuClockMhz: 4400,
         Cores: new[] { new CoreSample(0, 55, 4400, 60) },
         Gpu: new GpuSample("RX 5700", 70, 72, 88, 80, 1500, 45, 120, 1700, 875, 4, 8),
+        Gpus: new[] { new GpuSample("RX 5700", 70, 72, 88, 80, 1500, 45, 120, 1700, 875, 4, 8) },
         Memory: new MemorySample(32, 12, 10, 40, 4),
         Volumes: new[] { new VolumeSample("C:", "System", 1000, 400) },
         DiskReadBytesPerSecond: 50_000_000,
@@ -62,5 +63,5 @@ internal static class SnapshotFixture
         Processes: new[] { new ProcessSample(1234, "chrome", 12.3, 1_800_000_000) },
         Temps: new[] { new TempSample("VRM MOS", 78, "board") },
         Readings: Array.Empty<Reading>(),
-        Status: new SensorStatus(true, true, null, true, Array.Empty<string>()));
+        Status: new SensorStatus(true, true, null, true, Array.Empty<string>(), AppInfo.Version));
 }

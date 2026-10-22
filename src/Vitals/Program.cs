@@ -19,6 +19,12 @@ internal static class Program
 
         var options = CliOptions.Parse(args);
 
+        if (options.ShowVersion)
+        {
+            Console.WriteLine($"vitals {AppInfo.Version}");
+            return 0;
+        }
+
         if (options.ShowHelp)
         {
             Console.WriteLine(CliOptions.HelpText);

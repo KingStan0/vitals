@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Troubleshooting guide
+    url: https://github.com/KingStan0/vitals/blob/main/docs/troubleshooting.md
+    about: SmartScreen, missing sensors, PawnIO, disk throughput and layout fixes.
+  - name: Security report
+    url: https://github.com/KingStan0/vitals/security/advisories/new
+    about: Report vulnerabilities privately. Do not open a public issue.

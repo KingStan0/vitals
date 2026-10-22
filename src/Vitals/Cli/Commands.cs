@@ -8,17 +8,6 @@ namespace Vitals.Cli;
 
 public static class Commands
 {
-    private static readonly JsonSerializerOptions CompactJson = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
-
-    private static readonly JsonSerializerOptions PrettyJson = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = true,
-    };
-
     public static int Run(CliOptions options, AppConfig config)
     {
         return options.Command switch
@@ -38,7 +27,7 @@ public static class Commands
 
         if (options.Json)
         {
-            Console.WriteLine(JsonSerializer.Serialize(snapshot.Readings, PrettyJson));
+            Console.WriteLine(JsonSerializer.Serialize(snapshot.Readings, JsonOutput.Pretty));
             return 0;
         }
 
@@ -88,7 +77,7 @@ public static class Commands
 
         if (options.Json)
         {
-            Console.WriteLine(JsonSerializer.Serialize(snapshot, PrettyJson));
+            Console.WriteLine(JsonSerializer.Serialize(snapshot, JsonOutput.Pretty));
             return 0;
         }
 
@@ -117,7 +106,7 @@ public static class Commands
 
             if (options.Json)
             {
-                Console.WriteLine(JsonSerializer.Serialize(snapshot, CompactJson));
+                Console.WriteLine(JsonSerializer.Serialize(snapshot, JsonOutput.Compact));
             }
             else
             {

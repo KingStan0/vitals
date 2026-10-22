@@ -45,12 +45,19 @@ public sealed class SampleEngine : IDisposable
             notes.Add("not elevated: run vitals.cmd for full sensor access");
         }
 
+        // Even in --no-driver mode, report facts about the process environment:
+        // status.elevated and status.pawnIoInstalled describe the machine, while
+        // lhmAvailable describes whether the sensor backend was enabled.
+        var elevated = config.NoDriver ? LhmSource.IsProcessElevated() : _lhm.Elevated;
+        var pawnIo = config.NoDriver ? LhmSource.IsPawnIoInstalled() : _lhm.PawnIoInstalled;
+
         Status = new SensorStatus(
-            _lhm.Elevated,
+            elevated,
             _lhm.IsAvailable && !config.NoDriver,
             config.NoDriver ? "disabled by --no-driver" : _lhm.UnavailableReason,
-            _lhm.PawnIoInstalled,
-            notes);
+            pawnIo,
+            notes,
+            AppInfo.Version);
     }
 
     public SensorStatus Status { get; }

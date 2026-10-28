@@ -42,8 +42,9 @@ NDJSON, CSV recording, and a raw sensor dump you can attach to bug reports.
 ```
 
 `vitals.cmd` only requests administrator rights for the interactive dashboard.
-Headless commands (`snapshot`, `watch`, `export`, `sensors`, `--help`,
-`--version`) stay in the current console so pipes and redirects keep working.
+Headless commands (`snapshot`, `watch`, `export`, `sensors`, `--render-once`,
+`--help`, `--version`) stay in the current console so pipes and redirects keep
+working, even when options come before the command.
 Running `vitals.exe` directly still gives you CPU load, GPU, memory, disks,
 network and usually GPU temperatures, with missing readings shown as `n/a`.
 
@@ -156,6 +157,7 @@ vitals snapshot --json       one JSON document
 vitals watch                 periodic one-line summaries
 vitals watch --json          newline-delimited JSON (NDJSON), one object per tick
 vitals watch -d 30s          stop after 30 seconds
+vitals watch --out run.ndjson  write the stream to a file
 vitals export                record CSV until Ctrl+C (auto-named file)
 vitals export --out run.csv  record to a specific file
 vitals sensors               every raw sensor LHM exposes
@@ -167,18 +169,25 @@ vitals --help
 Options:
 
 ```text
--i, --interval <ms>    sampling interval, default 1000 (250–60000)
+-i, --interval <ms>    sampling interval for TUI/watch/export, default 1000 (250–60000)
 -d, --duration <time>  stop after 30s / 10m / 1h (watch, export)
--o, --out <path>       output path
+-o, --out <path>       output path (watch, export)
 -c, --config <path>    config file, default %APPDATA%\vitals\config.json
+    --json             machine-readable output (snapshot, watch, sensors)
     --no-driver        skip LibreHardwareMonitor entirely
-    --ascii            ASCII-only glyphs
+    --ascii            ASCII-only glyphs (TUI and human-readable output)
     --no-color         disable colour
     --render-once      render one dashboard frame and exit (testing)
     --debug            verbose errors
     --version          print the version and exit
 -h, --help
 ```
+
+`--help` and `--version` are terminal actions: when present they print and exit
+successfully even if another option is invalid.
+
+Exit codes are `0` for success, `1` for a runtime failure and `2` for invalid
+arguments.
 
 ### TUI keys
 
@@ -237,6 +246,22 @@ back to defaults. Invalid values are clamped.
 
 The dashboard adapts below 100 columns by stacking panels in a single column.
 `--ascii` is there for consoles that cannot render the Unicode gauges.
+
+- `intervalMs` — sampling interval in milliseconds (250–60000).
+- `processIntervalMs` — how often the process list is refreshed (250–60000).
+  Between refreshes the last list is reused, so JSON and the dashboard may show
+  a process percentage that is up to this old.
+- `processCount` — rows in the processes panel and entries in the JSON
+  `processes` array (3–64). The dashboard sorts the full process list, so the
+  memory and name views are not limited to the busiest processes.
+- `historySeconds` — seconds of samples kept for the TUI's in-memory `e`
+  export (30–86400). The export buffer holds only timestamps and raw readings,
+  and is capped at 6,000 frames so an extreme setting cannot exhaust memory.
+  Sparklines always retain the most recent 300 samples.
+- `ascii` and `theme` — dashboard defaults; `--ascii` and the `t` key override
+  them for the current run.
+- `thresholds` — `warn`/`crit` values used for colours; each is clamped to
+  0–200 and `crit` is kept at or above `warn`.
 
 ## Output formats
 
@@ -322,6 +347,8 @@ timestamp,id,source,hardware,name,kind,value,unit
 
 `vitals export` writes to `vitals-YYYYMMDD-HHmmss.csv` in the current directory
 unless `--out` is given. The TUI's `e` key exports the session held in memory.
+Files are UTF-8 with a BOM so Excel detects the encoding; text fields that start
+with a spreadsheet formula character are prefixed with an apostrophe.
 
 ## How it works
 
@@ -332,11 +359,17 @@ unless `--out` is given. The TUI's `e` key exports the session held in memory.
   immutable `Snapshot` objects; the UI thread only renders `Sampler.Latest`.
   Slow sensor reads never block the keyboard or rendering.
 - `History` keeps a fixed ring of recent samples for sparklines and peaks.
-- Per-core values are matched by LHM's stable sensor `Identifier` and name,
-  not by array position. See `docs/sensors/` for the maps used on real hardware.
+- Curated values are selected by LHM sensor name (for example `CPU Core #N`);
+  array position is never used. Raw readings keep LHM's stable `Identifier` in
+  `readings[].id`. See `docs/sensors/` for the maps used on real hardware.
 - Disk throughput uses `IOCTL_DISK_PERFORMANCE` on volume handles. On the
   development machine, the same IOCTL on `\\.\PhysicalDriveN` returns frozen
   counters, so volumes are the reliable source.
+- Network totals prefer physical adapters and fall back to virtual ones when
+  they are the only active path (for example inside a VM), so VPN/Hyper-V
+  adapters cannot double count the same traffic.
+- Drive and adapter topology is cached for 30 seconds; free space and byte
+  counters are still read every sample.
 
 ## Performance
 
@@ -359,8 +392,11 @@ pwsh -File scripts/soak.ps1 -Seconds 60 -Mode tui   # opens a console window
 The headless mode measures the same sampler used by the dashboard. The TUI mode
 includes rendering, but it is stopped with `Stop-Process`, so shutdown cost is
 not included. On the development machine (Ryzen 5 5600G, Windows 11), a 10-second
-headless run averaged about 0.5% of the machine (5.5% of one core) and 86 MB
-working set at 1 Hz; measure your own hardware before optimizing for it.
+headless run averaged about 0.4% of the machine (5% of one core) and 36 MB
+working set at 1 Hz, including process startup; measure your own hardware before
+optimizing for it. One-shot `snapshot` latency is dominated by the first
+LibreHardwareMonitor update (about 2–3 seconds); `--no-driver` completes in well
+under a second.
 
 ## Development
 

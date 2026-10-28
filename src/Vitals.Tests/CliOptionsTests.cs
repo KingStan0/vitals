@@ -68,14 +68,123 @@ public sealed class CliOptionsTests
     }
 
     [Theory]
+    [InlineData("snapshot")]
+    [InlineData("sensors")]
+    public void Rejects_interval_for_one_shot_commands(string command)
+    {
+        var options = CliOptions.Parse(new[] { command, "--interval", "500" });
+
+        Assert.NotNull(options.Error);
+        Assert.Contains("--interval", options.Error!, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("tui")]
+    [InlineData("watch")]
+    [InlineData("export")]
+    public void Allows_interval_for_sampling_commands(string command)
+    {
+        var options = CliOptions.Parse(new[] { command, "--interval", "500" });
+
+        Assert.Null(options.Error);
+    }
+
+    [Theory]
+    [InlineData("--out")]
+    [InlineData("--config")]
+    public void Rejects_empty_and_whitespace_paths(string option)
+    {
+        var empty = CliOptions.Parse(new[] { "watch", option, string.Empty });
+        var whitespace = CliOptions.Parse(new[] { "watch", option, "   " });
+
+        Assert.NotNull(empty.Error);
+        Assert.NotNull(whitespace.Error);
+    }
+
+    [Fact]
+    public void Help_and_version_are_terminal_actions_before_invalid_arguments()
+    {
+        var help = CliOptions.Parse(new[] { "--bogus", "--help" });
+        var version = CliOptions.Parse(new[] { "--interval", "10", "--version" });
+        var both = CliOptions.Parse(new[] { "--version", "--help", "--bogus" });
+
+        Assert.True(help.ShowHelp);
+        Assert.Null(help.Error);
+        Assert.True(version.ShowVersion);
+        Assert.Null(version.Error);
+        Assert.True(both.ShowHelp);
+        Assert.True(both.ShowVersion);
+        Assert.Null(both.Error);
+    }
+
+    [Theory]
     [InlineData("30s", 30)]
     [InlineData("5m", 300)]
     [InlineData("1h", 3600)]
-    public void Parses_durations(string text, int seconds)
+    [InlineData("1.5s", 1.5)]
+    public void Parses_durations(string text, double seconds)
     {
         var options = CliOptions.Parse(new[] { "watch", "--duration", text });
 
         Assert.Null(options.Error);
         Assert.Equal(TimeSpan.FromSeconds(seconds), options.Duration);
+    }
+
+    [Theory]
+    [InlineData("0s")]
+    [InlineData("-1s")]
+    [InlineData("1x")]
+    [InlineData("1ms")]
+    [InlineData("1e300d")]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    public void Rejects_invalid_or_overflowing_durations(string text)
+    {
+        var options = CliOptions.Parse(new[] { "watch", "--duration", text });
+
+        Assert.NotNull(options.Error);
+    }
+
+    [Fact]
+    public void Rejects_multiple_commands()
+    {
+        var options = CliOptions.Parse(new[] { "snapshot", "watch" });
+
+        Assert.NotNull(options.Error);
+    }
+
+    [Fact]
+    public void Rejects_json_for_the_dashboard()
+    {
+        var options = CliOptions.Parse(new[] { "--json" });
+
+        Assert.NotNull(options.Error);
+    }
+
+    [Fact]
+    public void Rejects_duration_for_one_shot_commands()
+    {
+        var options = CliOptions.Parse(new[] { "snapshot", "--duration", "10s" });
+
+        Assert.NotNull(options.Error);
+    }
+
+    [Fact]
+    public void Rejects_out_for_snapshot_but_allows_it_for_watch()
+    {
+        var snapshot = CliOptions.Parse(new[] { "snapshot", "--out", "x.json" });
+        var watch = CliOptions.Parse(new[] { "watch", "--out", "x.ndjson" });
+
+        Assert.NotNull(snapshot.Error);
+        Assert.Null(watch.Error);
+        Assert.Equal("x.ndjson", watch.OutPath);
+    }
+
+    [Fact]
+    public void Rejects_missing_option_values()
+    {
+        var options = CliOptions.Parse(new[] { "snapshot", "--out", "--json" });
+
+        Assert.NotNull(options.Error);
     }
 }

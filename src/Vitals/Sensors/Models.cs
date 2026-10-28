@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Vitals.Sensors;
 
 /// <summary>Normalised sensor categories, so the UI never has to know about LHM's enum.</summary>
@@ -98,4 +100,13 @@ public sealed record Snapshot(
     IReadOnlyList<ProcessSample> Processes,
     IReadOnlyList<TempSample> Temps,
     IReadOnlyList<Reading> Readings,
-    SensorStatus Status);
+    SensorStatus Status)
+{
+    /// <summary>
+    /// Every process seen on the last refresh, used by the dashboard when it
+    /// sorts by memory or name. It is deliberately excluded from JSON so the
+    /// public wire format keeps the trimmed <see cref="Processes"/> list.
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyList<ProcessSample> AllProcesses { get; init; } = Array.Empty<ProcessSample>();
+}

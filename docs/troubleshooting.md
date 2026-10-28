@@ -44,6 +44,23 @@ elevated process. Run the dashboard through `vitals.cmd`, or run the headless
 command from an elevated terminal. The dashboard shows `disk R 0 B/s` when the
 counters are unavailable.
 
+## Network totals differ from Task Manager
+
+`vitals` sums physical Ethernet/Wi-Fi adapters. Obvious virtual adapters (VPN,
+Hyper-V, VirtualBox, WireGuard) are ignored when a physical adapter is present,
+because they often carry a copy of the same bytes. On a VM guest, where virtual
+adapters are the only network path, they are included instead.
+
+## Intel or NVIDIA sensors look incomplete
+
+Per-core clocks are matched by LibreHardwareMonitor names `Core #N` (AMD) and
+`CPU Core #N` (some Intel builds); the `(Effective)` variants are ignored
+because they sit near zero at idle. VRAM totals accept `GPU Memory Total` and
+`D3D Dedicated Memory Total`. If a value is missing, attach
+`vitals sensors --json`; the raw names let the mapping be extended without
+guessing. Multi-socket CPUs aggregate package temperature/power and keep every
+socket's cores.
+
 ## GPU sensors are missing on a laptop
 
 The dashboard shows the primary adapter, chosen by VRAM size and power. Check

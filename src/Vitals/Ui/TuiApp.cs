@@ -16,7 +16,7 @@ public static class TuiApp
             return RenderOnce(cli, config);
         }
 
-        if (Console.IsOutputRedirected)
+        if (Console.IsOutputRedirected || Console.IsInputRedirected)
         {
             Console.Error.WriteLine("vitals: the dashboard needs an interactive terminal.");
             Console.Error.WriteLine("        use 'vitals snapshot --json' or 'vitals watch --json' instead.");
@@ -37,10 +37,13 @@ public static class TuiApp
             AnsiConsole.Profile.Capabilities.ColorSystem = ColorSystem.NoColors;
         }
 
-        using var engine = new SampleEngine(config);
-        engine.WarmUp();
-
+        // The sampler owns the engine and disposes it on shutdown.
+        var engine = new SampleEngine(config);
         using var sampler = new Sampler(engine, config);
+
+        // Publish the warm snapshot immediately; otherwise the first dashboard
+        // frame shows zero throughput and the next one reports a sub-second rate.
+        sampler.Seed(engine.WarmUp());
         sampler.Start();
 
         var deadline = Environment.TickCount64 + 5000;
@@ -51,7 +54,9 @@ public static class TuiApp
 
         if (sampler.Latest is null)
         {
-            Console.Error.WriteLine("vitals: could not collect a sample.");
+            Console.Error.WriteLine(sampler.LastError is { } error
+                ? $"vitals: {error}"
+                : "vitals: could not collect a sample.");
             return 1;
         }
 
@@ -66,6 +71,7 @@ public static class TuiApp
 
         var quit = false;
         var interactive = true;
+        var inputUnavailable = false;
         var toast = (string?)null;
         var toastUntil = 0L;
 
@@ -83,7 +89,7 @@ public static class TuiApp
 
         void ChangeInterval(int delta)
         {
-            var next = Math.Clamp(sampler.IntervalMs + delta, 250, 5000);
+            var next = Math.Clamp(sampler.IntervalMs + delta, 250, 60_000);
             sampler.IntervalMs = next;
             config.IntervalMs = next;
             SetToast($"interval {next} ms");
@@ -131,7 +137,7 @@ public static class TuiApp
                         $"vitals-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
                     try
                     {
-                        CsvExporter.Write(sampler.SessionSnapshot(), path);
+                        CsvExporter.WriteFrames(sampler.SessionFrames(), path);
                         SetToast($"exported {Path.GetFileName(path)}");
                     }
                     catch (Exception ex)
@@ -167,6 +173,9 @@ public static class TuiApp
                     .Start(context =>
                     {
                         Snapshot? rendered = null;
+                        var renderedPaused = false;
+                        string? renderedToast = null;
+                        string? renderedError = null;
 
                         while (!quit)
                         {
@@ -181,7 +190,12 @@ public static class TuiApp
                                 }
                                 catch (InvalidOperationException)
                                 {
+                                    // stdin can disappear after startup (detached
+                                    // console, broken pipe). There is no way to
+                                    // interact, so close cleanly instead of spinning.
                                     interactive = false;
+                                    inputUnavailable = true;
+                                    quit = true;
                                 }
                             }
 
@@ -196,6 +210,7 @@ public static class TuiApp
                             }
 
                             options.Toast = toast;
+                            options.Error = sampler.LastError;
 
                             var width = AnsiConsole.Profile.Width;
                             var height = AnsiConsole.Profile.Height;
@@ -210,11 +225,18 @@ public static class TuiApp
                             }
 
                             var snapshot = sampler.Latest;
-                            if (!options.Paused && snapshot is not null && !ReferenceEquals(snapshot, rendered))
+                            if (snapshot is not null &&
+                                (!ReferenceEquals(snapshot, rendered) ||
+                                 options.Paused != renderedPaused ||
+                                 !string.Equals(options.Toast, renderedToast, StringComparison.Ordinal) ||
+                                 !string.Equals(options.Error, renderedError, StringComparison.Ordinal)))
                             {
                                 Widgets.Update(layout, snapshot, sampler.History, options);
                                 context.Refresh();
                                 rendered = snapshot;
+                                renderedPaused = options.Paused;
+                                renderedToast = options.Toast;
+                                renderedError = options.Error;
                             }
 
                             Thread.Sleep(40);
@@ -227,6 +249,11 @@ public static class TuiApp
             }
         });
 
+        if (inputUnavailable)
+        {
+            Console.Error.WriteLine("vitals: keyboard input is unavailable; dashboard closed.");
+        }
+
         return 0;
     }
 
@@ -237,8 +264,7 @@ public static class TuiApp
     private static int RenderOnce(CliOptions cli, AppConfig config)
     {
         using var engine = new SampleEngine(config);
-        engine.WarmUp();
-        var snapshot = engine.Sample();
+        var snapshot = engine.WarmUp();
 
         var ascii = cli.Ascii || config.Ascii;
         var options = new RenderOptions
@@ -265,6 +291,7 @@ public static class TuiApp
 
         console.Profile.Width = options.Width;
         console.Profile.Height = options.Height;
+        console.Profile.Capabilities.Unicode = !ascii;
         console.Write(layout);
         return 0;
     }

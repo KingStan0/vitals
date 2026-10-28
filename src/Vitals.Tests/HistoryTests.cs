@@ -41,6 +41,37 @@ public sealed class HistoryTests
         Assert.Equal(61d, history.CpuTemp.Last!.Value);
         Assert.Equal(70d, history.GpuLoad.Last!.Value);
     }
+
+    [Fact]
+    public async Task Series_can_be_read_while_samples_are_added()
+    {
+        var series = new Series(100);
+        var writers = Enumerable.Range(0, 4)
+            .Select(worker => Task.Run(() =>
+            {
+                for (var i = 0; i < 5_000; i++)
+                {
+                    series.Add(worker * 5_000 + i);
+                }
+            }))
+            .ToArray();
+        var readers = Enumerable.Range(0, 4)
+            .Select(reader => Task.Run(() =>
+            {
+                for (var i = 0; i < 5_000; i++)
+                {
+                    _ = series.Last;
+                    _ = series.Peak;
+                    _ = series.Values.Count;
+                }
+            }))
+            .ToArray();
+
+        await Task.WhenAll(writers.Concat(readers));
+
+        Assert.Equal(100, series.Values.Count);
+        Assert.True(series.Peak > 0);
+    }
 }
 
 internal static class SnapshotFixture

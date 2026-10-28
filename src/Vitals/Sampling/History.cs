@@ -4,7 +4,9 @@ namespace Vitals.Sampling;
 
 public sealed class Series
 {
+    private readonly object _sync = new();
     private readonly Queue<double> _values;
+    private double _peak;
 
     public Series(int capacity)
     {
@@ -14,27 +16,63 @@ public sealed class Series
 
     public int Capacity { get; }
 
-    public double Peak { get; private set; }
-
-    public double? Last => _values.Count > 0 ? _values.Last() : null;
-
-    public void Add(double value)
+    public double Peak
     {
-        _values.Enqueue(value);
-        while (_values.Count > Capacity)
+        get
         {
-            _values.Dequeue();
-        }
-
-        if (value > Peak)
-        {
-            Peak = value;
+            lock (_sync)
+            {
+                return _peak;
+            }
         }
     }
 
-    public IReadOnlyList<double> Values => _values.ToArray();
+    public double? Last
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _values.Count > 0 ? _values.Last() : null;
+            }
+        }
+    }
 
-    public void ResetPeak() => Peak = 0;
+    public void Add(double value)
+    {
+        lock (_sync)
+        {
+            _values.Enqueue(value);
+            while (_values.Count > Capacity)
+            {
+                _values.Dequeue();
+            }
+
+            if (double.IsFinite(value) && value > _peak)
+            {
+                _peak = value;
+            }
+        }
+    }
+
+    public IReadOnlyList<double> Values
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _values.ToArray();
+            }
+        }
+    }
+
+    public void ResetPeak()
+    {
+        lock (_sync)
+        {
+            _peak = 0;
+        }
+    }
 }
 
 /// <summary>Fixed-length history used for sparklines and peaks.</summary>

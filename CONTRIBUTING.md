@@ -62,8 +62,9 @@ pwsh -File scripts/package.ps1 -Version dev
 
 The mappings in `docs/sensors/` are built from real `vitals sensors --json`
 dumps. If a temperature, fan or clock is missing on your board, include the dump
-and the exact sensor name from LibreHardwareMonitor. Never guess a sensor by
-array position; prefer stable identifiers and names.
+and the exact sensor name from LibreHardwareMonitor. Curated values are selected
+by sensor name; raw readings retain LHM's stable identifier. Never guess a
+sensor by array position.
 
 ## Commit messages
 

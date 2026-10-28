@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using Spectre.Console;
 using Vitals.Config;
 
@@ -7,10 +8,47 @@ namespace Vitals.Ui;
 public static class Fmt
 {
     private static readonly string[] ByteUnits = { "B", "KB", "MB", "GB", "TB", "PB" };
+    private static readonly char[] AsciiSparkGlyphs = { ' ', '.', ':', '-', '=', '+', '*', '#', '%', '@' };
+    private static readonly char[] UnicodeSparkGlyphs = { ' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█' };
+
+    /// <summary>
+    /// Replaces control characters so a sensor, process or machine name cannot
+    /// inject newlines or terminal escapes into a dashboard line.
+    /// </summary>
+    public static string OneLine(string text)
+    {
+        var hasControl = false;
+        foreach (var ch in text)
+        {
+            if (char.IsControl(ch))
+            {
+                hasControl = true;
+                break;
+            }
+        }
+
+        if (!hasControl)
+        {
+            return text;
+        }
+
+        var builder = new StringBuilder(text.Length);
+        foreach (var ch in text)
+        {
+            builder.Append(char.IsControl(ch) ? ' ' : ch);
+        }
+
+        return builder.ToString();
+    }
 
     public static string Bytes(double bytes)
     {
-        var value = Math.Max(0, bytes);
+        if (!double.IsFinite(bytes) || bytes <= 0)
+        {
+            return "0 B";
+        }
+
+        var value = bytes;
         var unit = 0;
 
         while (value >= 1024 && unit < ByteUnits.Length - 1)
@@ -26,19 +64,93 @@ public static class Fmt
 
     public static string Rate(double bytesPerSecond) => Bytes(bytesPerSecond) + "/s";
 
-    public static string Truncate(string text, int width)
+    public static string Truncate(string text, int width, bool ascii = false)
     {
         if (width <= 0)
         {
             return string.Empty;
         }
 
-        return text.Length <= width ? text : text[..Math.Max(1, width - 1)] + "…";
+        text = OneLine(text);
+
+        // Measure display cells rather than UTF-16 code units so wide glyphs
+        // (CJK, emoji) cannot overflow the panel and surrogate pairs are never
+        // split. The suffix occupies one cell.
+        if (DisplayWidth(text) <= width)
+        {
+            return text;
+        }
+
+        var budget = width - 1;
+        var used = 0;
+        var builder = new StringBuilder(text.Length);
+
+        foreach (var rune in text.EnumerateRunes())
+        {
+            var cells = RuneWidth(rune);
+            if (used + cells > budget)
+            {
+                break;
+            }
+
+            builder.Append(rune.ToString());
+            used += cells;
+        }
+
+        return builder.Append(ascii ? "." : "…").ToString();
     }
+
+    internal static int DisplayWidth(string text)
+    {
+        var width = 0;
+        foreach (var rune in text.EnumerateRunes())
+        {
+            width += RuneWidth(rune);
+        }
+
+        return width;
+    }
+
+    private static int RuneWidth(Rune rune)
+    {
+        var category = Rune.GetUnicodeCategory(rune);
+        if (category is UnicodeCategory.NonSpacingMark or UnicodeCategory.EnclosingMark or UnicodeCategory.Format)
+        {
+            return 0;
+        }
+
+        var value = rune.Value;
+        if (value is < 32 or (>= 0x7f and < 0xa0))
+        {
+            return 0;
+        }
+
+        // Approximation of the common East Asian wide/fullwidth and emoji
+        // ranges. Everything else is a single terminal cell.
+        return IsWide(value) ? 2 : 1;
+    }
+
+    private static bool IsWide(int value) =>
+        (value is >= 0x1100 and <= 0x115F) ||
+        value is 0x2329 or 0x232A ||
+        ((value is >= 0x2E80 and <= 0xA4CF) && value != 0x303F) ||
+        (value is >= 0xAC00 and <= 0xD7A3) ||
+        (value is >= 0xF900 and <= 0xFAFF) ||
+        (value is >= 0xFE10 and <= 0xFE19) ||
+        (value is >= 0xFE30 and <= 0xFE6F) ||
+        (value is >= 0xFF00 and <= 0xFF60) ||
+        (value is >= 0xFFE0 and <= 0xFFE6) ||
+        (value is >= 0x1F300 and <= 0x1FAFF) ||
+        (value is >= 0x20000 and <= 0x3FFFD);
 
     public static string Bar(double percent, int width, bool ascii)
     {
-        var clamped = Math.Clamp(percent, 0, 100);
+        if (width <= 0)
+        {
+            return string.Empty;
+        }
+
+        var clamped = double.IsFinite(percent) ? Math.Clamp(percent, 0, 100) : 0;
         var filled = (int)Math.Round(clamped / 100.0 * width);
         var on = ascii ? '#' : '█';
         var off = ascii ? '-' : '░';
@@ -55,9 +167,7 @@ public static class Fmt
             return string.Empty;
         }
 
-        var glyphs = ascii
-            ? new[] { ' ', '.', ':', '-', '=', '+', '*', '#', '%', '@' }
-            : new[] { ' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█' };
+        var glyphs = ascii ? AsciiSparkGlyphs : UnicodeSparkGlyphs;
 
         var clean = values.Where(v => !double.IsNaN(v) && !double.IsInfinity(v)).ToList();
         if (clean.Count == 0)
@@ -97,8 +207,7 @@ public static class Fmt
         }
 
         var color = LevelColor(celsius.Value, threshold);
-        var unit = ascii ? "C" : "°C";
-        return $"[{color}]{celsius.Value.ToString("0", CultureInfo.InvariantCulture)}{unit}[/]";
+        return $"[{color}]{celsius.Value.ToString("0", CultureInfo.InvariantCulture)}{TempUnit(ascii)}[/]";
     }
 
     public static string Uptime()
@@ -114,6 +223,8 @@ public static class Fmt
             return "n/a";
         }
 
-        return value.Value.ToString("0", CultureInfo.InvariantCulture) + (ascii ? "C" : "°C");
+        return value.Value.ToString("0", CultureInfo.InvariantCulture) + TempUnit(ascii);
     }
+
+    public static string TempUnit(bool ascii) => ascii ? "C" : "°C";
 }

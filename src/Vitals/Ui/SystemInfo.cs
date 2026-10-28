@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 namespace Vitals.Ui;
@@ -20,7 +21,11 @@ public static class SystemInfo
             var name = key?.GetValue("ProcessorNameString") as string;
             if (!string.IsNullOrWhiteSpace(name))
             {
-                return name.Replace("(R)", string.Empty).Replace("(TM)", string.Empty).Replace("  ", " ").Trim();
+                return Regex.Replace(
+                    name.Replace("(R)", string.Empty, StringComparison.OrdinalIgnoreCase)
+                        .Replace("(TM)", string.Empty, StringComparison.OrdinalIgnoreCase),
+                    @"\s+",
+                    " ").Trim();
             }
         }
         catch

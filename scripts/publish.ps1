@@ -2,7 +2,8 @@
 param(
     [string]$Runtime = 'win-x64',
     [string]$Configuration = 'Release',
-    [string]$Output = ''
+    [string]$Output = '',
+    [string]$Version = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,18 +27,38 @@ if (-not $dotnet) {
     throw 'The .NET 10 SDK was not found. Install it from https://dot.net and try again.'
 }
 
-Write-Host "publishing vitals ($Configuration, $Runtime) -> $Output"
-& $dotnet publish (Join-Path $root 'src\Vitals\Vitals.csproj') `
-    -c $Configuration `
-    -r $Runtime `
-    --self-contained true `
-    -p:PublishSingleFile=true `
-    -p:IncludeNativeLibrariesForSelfExtract=true `
-    -p:PublishReadyToRun=true `
-    -p:EnableCompressionInSingleFile=true `
-    -p:DebugType=None `
-    -p:DebugSymbols=false `
-    -o $Output
+$cleanVersion = $Version.TrimStart('v', 'V')
+$versionPattern = '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$'
+$appliedVersion = $cleanVersion
+if (-not [string]::IsNullOrWhiteSpace($cleanVersion) -and $cleanVersion -notmatch $versionPattern) {
+    # NuGet/MSBuild reject labels such as "dev" as a package version. Keep the
+    # friendly label for packaging, but let the csproj version be authoritative.
+    Write-Warning "ignoring invalid version '$cleanVersion'; using the csproj version"
+    $appliedVersion = ''
+}
+
+$arguments = @(
+    (Join-Path $root 'src\Vitals\Vitals.csproj'),
+    '-c', $Configuration,
+    '-r', $Runtime,
+    '--self-contained', 'true',
+    '-p:PublishSingleFile=true',
+    '-p:IncludeNativeLibrariesForSelfExtract=true',
+    '-p:PublishReadyToRun=true',
+    '-p:EnableCompressionInSingleFile=true',
+    '-p:DebugType=None',
+    '-p:DebugSymbols=false'
+)
+
+if (-not [string]::IsNullOrWhiteSpace($appliedVersion)) {
+    $arguments += "-p:Version=$appliedVersion"
+}
+
+$arguments += @('-o', $Output)
+
+$versionLabel = if ([string]::IsNullOrWhiteSpace($appliedVersion)) { 'csproj default' } else { $appliedVersion }
+Write-Host "publishing vitals ($Configuration, $Runtime, version $versionLabel) -> $Output"
+& $dotnet publish @arguments
 
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed with exit code $LASTEXITCODE"

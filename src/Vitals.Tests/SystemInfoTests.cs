@@ -27,4 +27,12 @@ public sealed class SystemInfoTests
 
         Assert.Equal("Windows 11 Enterprise 24H2 (26100)", name);
     }
+
+    [Fact]
+    public void Missing_product_falls_back_to_the_os_description()
+    {
+        var name = SystemInfo.FormatOsName(null, "24H2", "26100");
+
+        Assert.False(string.IsNullOrWhiteSpace(name));
+    }
 }

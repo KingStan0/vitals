@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $dist = Join-Path $root 'dist'
-$stage = Join-Path $dist 'vitals-win-x64'
+$stage = Join-Path $dist "vitals-$Runtime"
 $cleanVersion = $Version.TrimStart('v', 'V')
 $zip = Join-Path $dist "vitals-$cleanVersion-$Runtime.zip"
 
@@ -16,12 +16,27 @@ if (Test-Path $stage) {
     Remove-Item $stage -Recurse -Force
 }
 
-& (Join-Path $PSScriptRoot 'publish.ps1') `
-    -Runtime $Runtime `
-    -Configuration $Configuration `
-    -Output $stage
+# "dev" is a package label, not a NuGet version. Only forward real semantic
+# versions so the default package command works without a restore failure.
+$versionPattern = '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$'
+$publishVersion = if ($cleanVersion -match $versionPattern) { $cleanVersion } else { '' }
+$publishArguments = @{
+    Runtime = $Runtime
+    Configuration = $Configuration
+    Output = $stage
+}
+if ($publishVersion) {
+    $publishArguments.Version = $publishVersion
+}
 
-& (Join-Path $PSScriptRoot 'smoke.ps1') -Exe (Join-Path $stage 'vitals.exe')
+& (Join-Path $PSScriptRoot 'publish.ps1') @publishArguments
+
+$smokeArguments = @{ Exe = (Join-Path $stage 'vitals.exe') }
+if ($publishVersion) {
+    $smokeArguments.ExpectedVersion = $publishVersion
+}
+
+& (Join-Path $PSScriptRoot 'smoke.ps1') @smokeArguments
 
 Copy-Item (Join-Path $root 'vitals.cmd') $stage -Force
 

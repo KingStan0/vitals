@@ -15,7 +15,7 @@ public static class AppInfo
         if (!string.IsNullOrWhiteSpace(informational))
         {
             var metadata = informational.IndexOf('+');
-            return metadata > 0 ? informational[..metadata] : informational;
+            return metadata >= 0 ? informational[..metadata] : informational;
         }
 
         return assembly.GetName().Version?.ToString(3) ?? "0.0.0";

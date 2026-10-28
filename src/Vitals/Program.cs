@@ -1,4 +1,4 @@
-﻿using Vitals.Cli;
+using Vitals.Cli;
 using Vitals.Config;
 using Vitals.Ui;
 
@@ -17,7 +17,16 @@ internal static class Program
             // Redirected output does not support changing the encoding.
         }
 
-        var options = CliOptions.Parse(args);
+        CliOptions options;
+        try
+        {
+            options = CliOptions.Parse(args);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"vitals: could not parse arguments: {ex.Message}");
+            return 2;
+        }
 
         if (options.ShowVersion)
         {

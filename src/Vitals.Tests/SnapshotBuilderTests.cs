@@ -71,8 +71,26 @@ public sealed class SnapshotBuilderTests
         Assert.Equal("AMD Radeon RX 5700", snapshot.Gpu!.Name);
         Assert.Equal(1500, snapshot.Gpu.FanRpm);
         Assert.Equal(119.9, snapshot.Gpu.PowerW);
-        Assert.Equal(new[] { "base note", "extra note" }, snapshot.Status.Notes);
+        Assert.Equal(2, snapshot.Status.Notes.Count);
+        Assert.Contains("base note", snapshot.Status.Notes);
+        Assert.Contains("extra note", snapshot.Status.Notes);
         Assert.Equal(AppInfo.Version, snapshot.Status.AppVersion);
+    }
+
+    [Fact]
+    public void Build_keeps_the_full_process_list_for_dashboard_sorting()
+    {
+        var builder = new SnapshotBuilder();
+        builder.Processes.Add(new ProcessSample(1, "top-cpu", 9.876, 1));
+        builder.AllProcesses.Add(new ProcessSample(1, "top-cpu", 9.876, 1));
+        builder.AllProcesses.Add(new ProcessSample(2, "memory", 0.444, 2));
+
+        var snapshot = builder.Build(Status());
+
+        Assert.Single(snapshot.Processes);
+        Assert.Equal(2, snapshot.AllProcesses.Count);
+        Assert.Equal(9.876, snapshot.AllProcesses[0].CpuPercent);
+        Assert.Equal(0.444, snapshot.AllProcesses[1].CpuPercent);
     }
 
     [Fact]

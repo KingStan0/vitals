@@ -24,9 +24,9 @@ public sealed class Threshold
         Warn = Math.Clamp(Warn, 0, 200);
         Crit = Math.Clamp(Crit, 0, 200);
 
-        if (Crit <= Warn && Warn < 200)
+        if (Crit <= Warn)
         {
-            Crit = Math.Min(Warn + 10, 200);
+            Crit = Warn >= 200 ? 200 : Math.Min(Warn + 10, 200);
         }
     }
 }
@@ -120,14 +120,6 @@ public sealed class AppConfig
         Thresholds.GpuHotspot.Normalize();
         Thresholds.GpuMemory.Normalize();
         Thresholds.Memory.Normalize();
-    }
-
-    public string SaveExample()
-    {
-        var path = DefaultPath;
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, JsonSerializer.Serialize(this, JsonOptions));
-        return path;
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()

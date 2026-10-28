@@ -31,6 +31,9 @@ public sealed class SnapshotBuilder
 
     public List<ProcessSample> Processes { get; } = new();
 
+    /// <summary>Full process list for dashboard sorting; trimmed for JSON.</summary>
+    public List<ProcessSample> AllProcesses { get; } = new();
+
     public List<TempSample> Temps { get; } = new();
 
     public List<Reading> Readings { get; } = new();
@@ -52,6 +55,15 @@ public sealed class SnapshotBuilder
                     : new[] { Round(Gpu) })
             .ToArray();
         var primaryGpu = Gpu is null ? PickPrimaryGpu(gpus) : Round(Gpu);
+        var statusWithNotes = Notes.Count == 0
+            ? status
+            : status with
+            {
+                Notes = status.Notes
+                    .Concat(Notes)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+            };
 
         return new Snapshot(
             DateTimeOffset.Now,
@@ -91,14 +103,19 @@ public sealed class SnapshotBuilder
                 CpuPercent = Round(process.CpuPercent, 2),
             }).ToArray(),
             Temps.Select(temp => temp with { Celsius = Round(temp.Celsius, 1) }).ToArray(),
-            Readings.Select(reading => reading with { Value = Round(reading.Value, 3) }).ToArray(),
-            status with
+            Readings.Select(reading =>
             {
-                Notes = status.Notes
-                    .Concat(Notes)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToArray(),
-            });
+                // Sources round at creation (see LhmSource/WinSource); only pay
+                // for a new record when a value still needs normalising.
+                var value = Round(reading.Value, 3);
+                return value == reading.Value ? reading : reading with { Value = value };
+            }).ToArray(),
+            statusWithNotes)
+        {
+            // Share the process records with the next snapshot; only the trimmed
+            // Processes list needs per-frame rounding for JSON output.
+            AllProcesses = AllProcesses.ToArray(),
+        };
     }
 
     private static GpuSample? PickPrimaryGpu(IEnumerable<GpuSample> gpus) => gpus
@@ -124,7 +141,7 @@ public sealed class SnapshotBuilder
     private static double Round(double value, int digits) =>
         double.IsFinite(value) ? Math.Round(value, digits, MidpointRounding.AwayFromZero) : 0;
 
-    private static double? Round(double? value, int digits) =>
+    internal static double? Round(double? value, int digits) =>
         value is { } number && double.IsFinite(number)
             ? Math.Round(number, digits, MidpointRounding.AwayFromZero)
             : null;

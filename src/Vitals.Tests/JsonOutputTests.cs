@@ -31,6 +31,20 @@ public sealed class JsonOutputTests
     }
 
     [Fact]
+    public void Dashboard_only_process_list_is_not_serialized()
+    {
+        var snapshot = SnapshotFixture.Create() with
+        {
+            AllProcesses = new[] { new ProcessSample(1, "hidden", 1, 1) },
+        };
+
+        var json = JsonSerializer.Serialize(snapshot, JsonOutput.Compact);
+
+        Assert.DoesNotContain("allProcesses", json);
+        Assert.DoesNotContain("hidden", json);
+    }
+
+    [Fact]
     public void Compact_json_is_one_line()
     {
         var json = JsonSerializer.Serialize(SnapshotFixture.Create(), JsonOutput.Compact);

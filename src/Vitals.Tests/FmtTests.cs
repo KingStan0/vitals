@@ -47,5 +47,49 @@ public sealed class FmtTests
     {
         Assert.Equal("chrome", Fmt.Truncate("chrome", 10));
         Assert.Equal(5, Fmt.Truncate("chrome.exe", 5).Length);
+        Assert.Equal("chro…", Fmt.Truncate("chrome.exe", 5));
+    }
+
+    [Fact]
+    public void Truncate_uses_ascii_in_ascii_mode()
+    {
+        Assert.Equal("chro.", Fmt.Truncate("chrome.exe", 5, ascii: true));
+        Assert.Equal(".", Fmt.Truncate("chrome.exe", 1, ascii: true));
+    }
+
+    [Fact]
+    public void Truncate_counts_wide_glyphs_and_never_splits_a_surrogate_pair()
+    {
+        Assert.Equal("你…", Fmt.Truncate("你好世界", 3));
+        Assert.Equal("你.", Fmt.Truncate("你好", 3, ascii: true));
+        Assert.Equal("😀…", Fmt.Truncate("😀😀", 3));
+        Assert.Equal("你", Fmt.Truncate("你", 2));
+    }
+
+    [Fact]
+    public void Truncate_keeps_text_that_fits_exactly()
+    {
+        Assert.Equal("abc", Fmt.Truncate("abc", 3));
+        Assert.Equal("你好", Fmt.Truncate("你好", 4));
+    }
+
+    [Fact]
+    public void Truncate_replaces_control_characters_before_rendering()
+    {
+        Assert.Equal("a b", Fmt.Truncate("a\nb", 10));
+        Assert.Equal("a b", Fmt.Truncate("a\tb", 10));
+        Assert.Equal("a b", Fmt.OneLine("a\rb"));
+        Assert.Equal("plain", Fmt.OneLine("plain"));
+    }
+
+    [Fact]
+    public void Formatting_handles_non_finite_and_empty_values()
+    {
+        Assert.Equal("0 B", Fmt.Bytes(double.NaN));
+        Assert.Equal("0 B", Fmt.Bytes(double.PositiveInfinity));
+        Assert.Equal(string.Empty, Fmt.Bar(50, 0, false));
+        Assert.Equal(new string('-', 4), Fmt.Bar(double.NaN, 4, true));
+        Assert.Equal("n/a", Fmt.Celsius(null, false));
+        Assert.Equal("12C", Fmt.Celsius(12, true));
     }
 }

@@ -11,10 +11,12 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 
 if ([string]::IsNullOrWhiteSpace($Exe)) {
+    # Prefer a source build in a checkout; dist may be an older release. Pass
+    # -Exe explicitly when soaking a packaged build.
     $candidates = @(
-        (Join-Path $root 'dist\vitals.exe'),
         (Join-Path $root 'src\Vitals\bin\Release\net10.0-windows\vitals.exe'),
-        (Join-Path $root 'src\Vitals\bin\Debug\net10.0-windows\vitals.exe')
+        (Join-Path $root 'src\Vitals\bin\Debug\net10.0-windows\vitals.exe'),
+        (Join-Path $root 'dist\vitals.exe')
     )
     $Exe = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 }
@@ -22,6 +24,8 @@ if ([string]::IsNullOrWhiteSpace($Exe)) {
 if (-not $Exe -or -not (Test-Path $Exe)) {
     throw 'vitals.exe not found. Build it with scripts\publish.ps1 or pass -Exe.'
 }
+
+Write-Host "soaking $Exe"
 
 $logical = [Environment]::ProcessorCount
 $output = [System.IO.Path]::GetTempFileName()
@@ -41,6 +45,11 @@ try {
         $process = Start-Process -FilePath $Exe -ArgumentList $arguments -PassThru
     }
 
+    # Windows PowerShell's Start-Process -PassThru does not keep the native
+    # handle, so ExitCode is $null after the process exits. Touching Handle
+    # retains it and makes the exit-code check below reliable.
+    $null = $process.Handle
+
     $started = [DateTime]::UtcNow
     $deadline = $started.AddSeconds($Seconds + 10)
     $cpuSeconds = 0.0
@@ -55,11 +64,13 @@ try {
         Start-Sleep -Seconds 1
     }
 
+    $forced = $false
     if (-not $process.HasExited) {
+        $forced = $true
         Stop-Process -Id $process.Id -Force
-        $process.WaitForExit()
     }
 
+    $process.WaitForExit()
     $process.Refresh()
     if ($process.TotalProcessorTime.TotalSeconds -gt $cpuSeconds) {
         $cpuSeconds = $process.TotalProcessorTime.TotalSeconds
@@ -85,7 +96,15 @@ try {
     Write-Host ("working set : {0:N1} MB average" -f $averageWorkingSetMb)
 
     if ($Mode -eq 'headless') {
-        $lines = @(Get-Content -LiteralPath $output -ErrorAction SilentlyContinue).Count
+        if ($forced) {
+            throw "watch did not finish within $($Seconds + 10) seconds"
+        }
+
+        if ($process.ExitCode -ne 0) {
+            throw "watch --json failed with exit code $($process.ExitCode)"
+        }
+
+        $lines = @(Get-Content -LiteralPath $output -Encoding UTF8 -ErrorAction SilentlyContinue).Count
         Write-Host ("ndjson lines: {0}" -f $lines)
         if ($lines -lt 1) {
             throw 'watch --json produced no output'

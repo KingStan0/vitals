@@ -51,10 +51,13 @@ public sealed class SampleEngine : IDisposable
         var elevated = config.NoDriver ? LhmSource.IsProcessElevated() : _lhm.Elevated;
         var pawnIo = config.NoDriver ? LhmSource.IsPawnIoInstalled() : _lhm.PawnIoInstalled;
 
+        // An intentionally disabled backend is not an error: the notes already
+        // explain the mode, and a non-null lhmError would be shown in red and
+        // read as a failure by JSON consumers.
         Status = new SensorStatus(
             elevated,
             _lhm.IsAvailable && !config.NoDriver,
-            config.NoDriver ? "disabled by --no-driver" : _lhm.UnavailableReason,
+            config.NoDriver ? null : _lhm.UnavailableReason,
             pawnIo,
             notes,
             AppInfo.Version);
@@ -74,7 +77,8 @@ public sealed class SampleEngine : IDisposable
             RefreshProcesses();
         }
 
-        builder.Processes.AddRange(_lastProcesses);
+        builder.Processes.AddRange(_lastProcesses.Take(_config.ProcessCount));
+        builder.AllProcesses.AddRange(_lastProcesses);
 
         if (_lhm.IsAvailable && !_lhm.Elevated)
         {
@@ -89,21 +93,31 @@ public sealed class SampleEngine : IDisposable
         return builder.Build(Status);
     }
 
-    /// <summary>Two quick samples so rate counters have a baseline.</summary>
-    public void WarmUp()
+    /// <summary>
+    /// Primes the rate and process counters and returns the first snapshot.
+    /// Hardware sensors are updated only once here: extra LHM updates are
+    /// expensive, and the previous implementation reset the rate window just
+    /// before the caller sampled again, which reported zero throughput.
+    /// </summary>
+    public Snapshot WarmUp()
     {
-        Sample();
+        // Prime the cheap Win32 counters and the process baseline. This frame is
+        // deliberately discarded; the next Sample() measures the 250 ms window.
+        _win.Sample(new SnapshotBuilder());
+        _processes.Sample();
         Thread.Sleep(250);
 
-        // The first process pass is only a baseline (all zeros). Refresh it so
-        // one-shot commands such as `snapshot --json` report real percentages.
-        RefreshProcesses();
-        Sample();
+        // The first process pass is only a baseline (all zeros). This second
+        // pass supplies real percentages for the returned snapshot.
+        _lastProcesses = _processes.Sample();
+        _lastProcessTick = Environment.TickCount64;
+
+        return Sample();
     }
 
     private void RefreshProcesses()
     {
-        _lastProcesses = _processes.Sample(_config.ProcessCount);
+        _lastProcesses = _processes.Sample();
         _lastProcessTick = Environment.TickCount64;
     }
 

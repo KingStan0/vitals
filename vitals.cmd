@@ -16,14 +16,20 @@ if not exist "%EXE%" (
 )
 
 rem Headless commands must stay in this console so pipes and file redirection
-rem work. Only the interactive dashboard needs elevation.
-if /I "%~1"=="snapshot" goto run
-if /I "%~1"=="watch" goto run
-if /I "%~1"=="export" goto run
-if /I "%~1"=="sensors" goto run
-if /I "%~1"=="-h" goto run
-if /I "%~1"=="--help" goto run
-if /I "%~1"=="--version" goto run
+rem work. Scan every argument, not just the first, because options may precede
+rem the command (for example: vitals.cmd --json snapshot).
+set "HEADLESS="
+for %%A in (%*) do (
+  if /I "%%~A"=="snapshot" set "HEADLESS=1"
+  if /I "%%~A"=="watch" set "HEADLESS=1"
+  if /I "%%~A"=="export" set "HEADLESS=1"
+  if /I "%%~A"=="sensors" set "HEADLESS=1"
+  if /I "%%~A"=="--render-once" set "HEADLESS=1"
+  if /I "%%~A"=="-h" set "HEADLESS=1"
+  if /I "%%~A"=="--help" set "HEADLESS=1"
+  if /I "%%~A"=="--version" set "HEADLESS=1"
+)
+if defined HEADLESS goto run
 
 rem fltmc requires administrator rights and does not depend on the Server service.
 fltmc >nul 2>&1

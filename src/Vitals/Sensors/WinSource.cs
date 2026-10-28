@@ -11,14 +11,20 @@ namespace Vitals.Sensors;
 public sealed class WinSource : ISensorSource
 {
     private const uint IoctlDiskPerformance = 0x00070020;
+    private const int VolumeRefreshMs = 30_000;
+    private const int AdapterRefreshMs = 30_000;
 
-    private readonly List<DiskCounter> _disks = new();
+    private readonly Dictionary<string, DiskCounter> _disks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<VolumeInfo> _volumes = new();
+    private readonly List<NetworkInterface> _adapters = new();
     private readonly Dictionary<string, (long Rx, long Tx)> _previousNetwork = new(StringComparer.Ordinal);
 
     private ulong _previousIdle;
     private ulong _previousKernel;
     private ulong _previousUser;
     private long _previousTick;
+    private long _lastVolumeRefresh;
+    private long _lastAdapterRefresh;
 
     public string Name => "win";
 
@@ -28,26 +34,22 @@ public sealed class WinSource : ISensorSource
 
     public void Initialize()
     {
+        CloseDisks();
+        _volumes.Clear();
+        _adapters.Clear();
+        _previousNetwork.Clear();
         _previousTick = Environment.TickCount64;
+        _previousIdle = 0;
+        _previousKernel = 0;
+        _previousUser = 0;
+        _lastVolumeRefresh = 0;
+        _lastAdapterRefresh = 0;
 
-        foreach (var drive in DriveInfo.GetDrives())
-        {
-            try
-            {
-                if (!drive.IsReady || drive.DriveType != DriveType.Fixed)
-                {
-                    continue;
-                }
-
-                var path = @"\\.\" + drive.Name.TrimEnd('\\');
-                var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                _disks.Add(new DiskCounter(stream));
-            }
-            catch
-            {
-                // Volume counters need elevation; skip what we cannot open.
-            }
-        }
+        // Topology changes rarely. Enumerating drives and adapters every second
+        // is one of the more expensive parts of a driver-free sample, so cache
+        // both lists and refresh only free-space and byte counters per tick.
+        RefreshVolumes();
+        RefreshAdapters();
 
         if (GetSystemTimes(out var idle, out var kernel, out var user))
         {
@@ -68,22 +70,24 @@ public sealed class WinSource : ISensorSource
         SampleNetwork(builder, seconds);
         SampleVolumes(builder);
 
-        builder.Readings.Add(new Reading("win/cpu/load", Name, "CPU", "Total", SensorKind.Load, builder.CpuLoadPercent, "%"));
+        builder.Readings.Add(new Reading(
+            "win/cpu/load", Name, "CPU", "Total", SensorKind.Load,
+            SnapshotBuilder.Round(builder.CpuLoadPercent, 3), "%"));
 
         if (builder.Memory is { } memory)
         {
-            builder.Readings.Add(new Reading("win/mem/used", Name, "Memory", "Used", SensorKind.Data, memory.UsedBytes / 1024d / 1024d / 1024d, "GB"));
-            builder.Readings.Add(new Reading("win/mem/available", Name, "Memory", "Available", SensorKind.Data, memory.AvailableBytes / 1024d / 1024d / 1024d, "GB"));
-            builder.Readings.Add(new Reading("win/mem/commit", Name, "Memory", "Commit", SensorKind.Data, memory.CommitBytes / 1024d / 1024d / 1024d, "GB"));
+            builder.Readings.Add(new Reading("win/mem/used", Name, "Memory", "Used", SensorKind.Data, SnapshotBuilder.Round(memory.UsedBytes / 1024d / 1024d / 1024d, 3), "GB"));
+            builder.Readings.Add(new Reading("win/mem/available", Name, "Memory", "Available", SensorKind.Data, SnapshotBuilder.Round(memory.AvailableBytes / 1024d / 1024d / 1024d, 3), "GB"));
+            builder.Readings.Add(new Reading("win/mem/commit", Name, "Memory", "Commit", SensorKind.Data, SnapshotBuilder.Round(memory.CommitBytes / 1024d / 1024d / 1024d, 3), "GB"));
         }
 
-        builder.Readings.Add(new Reading("win/disk/read", Name, "Disk", "Read", SensorKind.Throughput, builder.DiskReadBytesPerSecond / 1024d / 1024d, "MB/s"));
-        builder.Readings.Add(new Reading("win/disk/write", Name, "Disk", "Write", SensorKind.Throughput, builder.DiskWriteBytesPerSecond / 1024d / 1024d, "MB/s"));
+        builder.Readings.Add(new Reading("win/disk/read", Name, "Disk", "Read", SensorKind.Throughput, SnapshotBuilder.Round(builder.DiskReadBytesPerSecond / 1024d / 1024d, 3), "MB/s"));
+        builder.Readings.Add(new Reading("win/disk/write", Name, "Disk", "Write", SensorKind.Throughput, SnapshotBuilder.Round(builder.DiskWriteBytesPerSecond / 1024d / 1024d, 3), "MB/s"));
 
         if (builder.NetReceiveBytesPerSecond is { } rx && builder.NetSendBytesPerSecond is { } tx)
         {
-            builder.Readings.Add(new Reading("win/net/rx", Name, "Network", "Received", SensorKind.Throughput, rx / 1024d / 1024d, "MB/s"));
-            builder.Readings.Add(new Reading("win/net/tx", Name, "Network", "Sent", SensorKind.Throughput, tx / 1024d / 1024d, "MB/s"));
+            builder.Readings.Add(new Reading("win/net/rx", Name, "Network", "Received", SensorKind.Throughput, SnapshotBuilder.Round(rx / 1024d / 1024d, 3), "MB/s"));
+            builder.Readings.Add(new Reading("win/net/tx", Name, "Network", "Sent", SensorKind.Throughput, SnapshotBuilder.Round(tx / 1024d / 1024d, 3), "MB/s"));
         }
 
         _previousTick = now;
@@ -91,7 +95,15 @@ public sealed class WinSource : ISensorSource
 
     public void Dispose()
     {
-        foreach (var disk in _disks)
+        CloseDisks();
+        _volumes.Clear();
+        _adapters.Clear();
+        _previousNetwork.Clear();
+    }
+
+    private void CloseDisks()
+    {
+        foreach (var disk in _disks.Values)
         {
             disk.Dispose();
         }
@@ -103,12 +115,24 @@ public sealed class WinSource : ISensorSource
     {
         if (!GetSystemTimes(out var idle, out var kernel, out var user))
         {
+            builder.Note("cpu load unavailable");
             return;
         }
 
         var idleNow = idle.ToUInt64();
         var kernelNow = kernel.ToUInt64();
         var userNow = user.ToUInt64();
+
+        // Counters are monotonic in practice, but a reset or a race with a
+        // suspended machine can make one go backwards. Never let an unsigned
+        // subtraction wrap into a huge bogus delta.
+        if (kernelNow < _previousKernel || userNow < _previousUser || idleNow < _previousIdle)
+        {
+            _previousIdle = idleNow;
+            _previousKernel = kernelNow;
+            _previousUser = userNow;
+            return;
+        }
 
         var totalDelta = kernelNow - _previousKernel + (userNow - _previousUser);
         var idleDelta = idleNow - _previousIdle;
@@ -143,6 +167,14 @@ public sealed class WinSource : ISensorSource
             limit = info.CommitLimit * pageSize;
             cache = info.SystemCache * pageSize;
         }
+        else
+        {
+            // GetPerformanceInfo is unavailable on a few hardened systems. Fall
+            // back to the commit figures that GlobalMemoryStatusEx already gave
+            // us instead of displaying zero-byte placeholders.
+            limit = status.TotalPageFile;
+            commit = Math.Max(0, status.TotalPageFile - status.AvailPageFile);
+        }
 
         builder.Memory = new MemorySample(status.TotalPhys, status.AvailPhys, commit, limit, cache);
     }
@@ -157,7 +189,7 @@ public sealed class WinSource : ISensorSource
         long read = 0;
         long write = 0;
 
-        foreach (var disk in _disks)
+        foreach (var disk in _disks.Values)
         {
             if (!DeviceIoControl(
                     disk.Handle,
@@ -172,7 +204,7 @@ public sealed class WinSource : ISensorSource
                 continue;
             }
 
-            if (disk.Read > 0)
+            if (disk.Initialized)
             {
                 read += Math.Max(0, performance.BytesRead - disk.Read);
                 write += Math.Max(0, performance.BytesWritten - disk.Write);
@@ -180,6 +212,7 @@ public sealed class WinSource : ISensorSource
 
             disk.Read = performance.BytesRead;
             disk.Write = performance.BytesWritten;
+            disk.Initialized = true;
         }
 
         builder.DiskReadBytesPerSecond = read / seconds;
@@ -188,30 +221,19 @@ public sealed class WinSource : ISensorSource
 
     private void SampleNetwork(SnapshotBuilder builder, double seconds)
     {
-        try
+        RefreshAdaptersIfDue();
+
+        long received = 0;
+        long sent = 0;
+        var sawAdapter = false;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var adapter in _adapters)
         {
-            long received = 0;
-            long sent = 0;
-            var seen = new HashSet<string>(StringComparer.Ordinal);
-
-            foreach (var adapter in NetworkInterface.GetAllNetworkInterfaces())
+            try
             {
-                if (adapter.OperationalStatus != OperationalStatus.Up)
-                {
-                    continue;
-                }
-
-                if (adapter.NetworkInterfaceType is not (
-                        NetworkInterfaceType.Ethernet or
-                        NetworkInterfaceType.GigabitEthernet or
-                        NetworkInterfaceType.FastEthernetT or
-                        NetworkInterfaceType.FastEthernetFx or
-                        NetworkInterfaceType.Wireless80211))
-                {
-                    continue;
-                }
-
                 var stats = adapter.GetIPStatistics();
+                sawAdapter = true;
                 seen.Add(adapter.Id);
 
                 if (_previousNetwork.TryGetValue(adapter.Id, out var previous))
@@ -222,43 +244,210 @@ public sealed class WinSource : ISensorSource
 
                 _previousNetwork[adapter.Id] = (stats.BytesReceived, stats.BytesSent);
             }
-
-            foreach (var stale in _previousNetwork.Keys.Where(key => !seen.Contains(key)).ToArray())
+            catch (NetworkInformationException)
             {
-                _previousNetwork.Remove(stale);
+                // An adapter can disappear between the topology refresh and this
+                // read. Skip it without discarding the other adapters' counters.
             }
+            catch (PlatformNotSupportedException)
+            {
+                // Some virtual stacks expose an adapter but no IP statistics.
+            }
+        }
 
+        foreach (var stale in _previousNetwork.Keys.Where(key => !seen.Contains(key)).ToArray())
+        {
+            _previousNetwork.Remove(stale);
+        }
+
+        if (sawAdapter)
+        {
             builder.NetReceiveBytesPerSecond = received / seconds;
             builder.NetSendBytesPerSecond = sent / seconds;
         }
-        catch
-        {
-            // Network statistics are best effort.
-        }
     }
 
-    private static void SampleVolumes(SnapshotBuilder builder)
+    private void RefreshVolumes()
     {
-        foreach (var drive in DriveInfo.GetDrives())
+        var next = new List<VolumeInfo>();
+
+        try
+        {
+            foreach (var drive in DriveInfo.GetDrives())
+            {
+                try
+                {
+                    if (drive.DriveType != DriveType.Fixed || !drive.IsReady)
+                    {
+                        continue;
+                    }
+
+                    next.Add(new VolumeInfo(
+                        drive,
+                        drive.Name.TrimEnd('\\'),
+                        drive.VolumeLabel,
+                        drive.TotalSize));
+                }
+                catch
+                {
+                    // Skip volumes that disappear mid-enumeration.
+                }
+            }
+        }
+        catch
+        {
+            // Keep the previous topology rather than showing no drives for a
+            // full refresh interval after a transient enumeration failure.
+            _lastVolumeRefresh = Environment.TickCount64;
+            return;
+        }
+
+        _volumes.Clear();
+        _volumes.AddRange(next);
+        _lastVolumeRefresh = Environment.TickCount64;
+        SyncDiskCounters();
+    }
+
+    private void SyncDiskCounters()
+    {
+        var (added, removed) = DiffVolumes(
+            _disks.Keys,
+            _volumes.Select(volume => volume.Name));
+
+        foreach (var stale in removed)
+        {
+            _disks[stale].Dispose();
+            _disks.Remove(stale);
+        }
+
+        foreach (var name in added)
         {
             try
             {
-                if (!drive.IsReady || drive.DriveType != DriveType.Fixed)
+                var path = @"\\.\" + name;
+                var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                _disks[name] = new DiskCounter(stream);
+            }
+            catch
+            {
+                // Volume counters need elevation; skip what we cannot open.
+            }
+        }
+    }
+
+    internal static (string[] Added, string[] Removed) DiffVolumes(
+        IEnumerable<string> existing,
+        IEnumerable<string> current)
+    {
+        var existingSet = existing.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var currentSet = current.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return (
+            currentSet.Where(name => !existingSet.Contains(name)).ToArray(),
+            existingSet.Where(name => !currentSet.Contains(name)).ToArray());
+    }
+
+    private void SampleVolumes(SnapshotBuilder builder)
+    {
+        if (Environment.TickCount64 - _lastVolumeRefresh >= VolumeRefreshMs)
+        {
+            RefreshVolumes();
+        }
+
+        foreach (var volume in _volumes)
+        {
+            try
+            {
+                builder.Volumes.Add(new VolumeSample(
+                    volume.Name,
+                    volume.Label,
+                    volume.TotalBytes,
+                    volume.Drive.TotalFreeSpace));
+            }
+            catch
+            {
+                // The drive was removed or became unready. Rebuild the topology
+                // on the next tick so free space does not keep failing.
+                _lastVolumeRefresh = 0;
+            }
+        }
+    }
+
+    private void RefreshAdapters()
+    {
+        var next = new List<NetworkInterface>();
+
+        try
+        {
+            var physical = new List<NetworkInterface>();
+            var virtualAdapters = new List<NetworkInterface>();
+
+            foreach (var adapter in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (adapter.OperationalStatus != OperationalStatus.Up)
                 {
                     continue;
                 }
 
-                builder.Volumes.Add(new VolumeSample(
-                    drive.Name.TrimEnd('\\'),
-                    drive.VolumeLabel,
-                    drive.TotalSize,
-                    drive.TotalFreeSpace));
+                if (!IsSupportedAdapterType(adapter.NetworkInterfaceType))
+                {
+                    continue;
+                }
+
+                // Virtual adapters often carry a copy of the host traffic, which
+                // double counts a VPN or a Hyper-V switch. Prefer physical
+                // adapters when any exist, but keep virtual ones on a VM guest
+                // where they are the only network path.
+                if (IsVirtualAdapter(adapter.Description, adapter.Name))
+                {
+                    virtualAdapters.Add(adapter);
+                }
+                else
+                {
+                    physical.Add(adapter);
+                }
             }
-            catch
-            {
-                // Skip volumes that disappear mid-enumeration.
-            }
+
+            next.AddRange(physical.Count > 0 ? physical : virtualAdapters);
         }
+        catch
+        {
+            // Keep the previous topology rather than reporting no network for a
+            // full refresh interval after a transient enumeration failure.
+            _lastAdapterRefresh = Environment.TickCount64;
+            return;
+        }
+
+        _adapters.Clear();
+        _adapters.AddRange(next);
+        _lastAdapterRefresh = Environment.TickCount64;
+    }
+
+    private void RefreshAdaptersIfDue()
+    {
+        if (Environment.TickCount64 - _lastAdapterRefresh >= AdapterRefreshMs)
+        {
+            RefreshAdapters();
+        }
+    }
+
+    private static bool IsSupportedAdapterType(NetworkInterfaceType type) => type is
+        NetworkInterfaceType.Ethernet or
+        NetworkInterfaceType.GigabitEthernet or
+        NetworkInterfaceType.FastEthernetT or
+        NetworkInterfaceType.FastEthernetFx or
+        NetworkInterfaceType.Wireless80211;
+
+    internal static bool IsVirtualAdapter(string description, string name)
+    {
+        var text = description + " " + name;
+        return text.Contains("Virtual", StringComparison.OrdinalIgnoreCase) ||
+               text.Contains("TAP-", StringComparison.OrdinalIgnoreCase) ||
+               text.Contains("Wintun", StringComparison.OrdinalIgnoreCase) ||
+               text.Contains("WireGuard", StringComparison.OrdinalIgnoreCase) ||
+               text.Contains("VPN", StringComparison.OrdinalIgnoreCase) ||
+               text.Contains("Tailscale", StringComparison.OrdinalIgnoreCase) ||
+               text.Contains("ZeroTier", StringComparison.OrdinalIgnoreCase);
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -317,8 +506,16 @@ public sealed class WinSource : ISensorSource
         public uint SplitCount;
         public long QueryTime;
         public uint StorageDeviceNumber;
-        public Guid StorageManagerName;
+
+        // Native DISK_PERFORMANCE ends in WCHAR StorageManagerName[8]. Four
+        // uint fields keep the same 16-byte size without pretending it is a Guid.
+        public uint StorageManagerName0;
+        public uint StorageManagerName1;
+        public uint StorageManagerName2;
+        public uint StorageManagerName3;
     }
+
+    private sealed record VolumeInfo(DriveInfo Drive, string Name, string Label, double TotalBytes);
 
     private sealed class DiskCounter : IDisposable
     {
@@ -327,6 +524,8 @@ public sealed class WinSource : ISensorSource
         public DiskCounter(FileStream stream) => _stream = stream;
 
         public SafeFileHandle Handle => _stream.SafeFileHandle;
+
+        public bool Initialized { get; set; }
 
         public long Read { get; set; }
 

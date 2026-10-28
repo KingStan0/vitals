@@ -45,6 +45,16 @@ public sealed class AppConfigTests
     }
 
     [Fact]
+    public void Threshold_at_the_upper_bound_keeps_a_valid_critical_value()
+    {
+        var threshold = new Threshold(200, 100);
+        threshold.Normalize();
+
+        Assert.Equal(200, threshold.Warn);
+        Assert.Equal(200, threshold.Crit);
+    }
+
+    [Fact]
     public void Invalid_json_falls_back_to_defaults_with_a_warning()
     {
         var path = Path.Combine(Path.GetTempPath(), $"vitals-config-{Guid.NewGuid():N}.json");

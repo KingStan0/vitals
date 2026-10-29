@@ -3,6 +3,7 @@ using System.Text.Json;
 using Vitals.Config;
 using Vitals.Sampling;
 using Vitals.Sensors;
+using Vitals.Setup;
 using Vitals.Ui;
 
 namespace Vitals.Cli;
@@ -17,6 +18,7 @@ public static class Commands
             "snapshot" => Snapshot(options, config),
             "watch" => Watch(options, config),
             "export" => ExportCsv(options, config),
+            "setup" => Setup(options, config),
             _ => 2,
         };
     }
@@ -60,7 +62,7 @@ public static class Commands
         if (snapshot.Readings.Count == 0)
         {
             output.WriteLine();
-            output.WriteLine("No sensors were reported. Install PawnIO and run vitals from an elevated terminal.");
+            output.WriteLine("No sensors were reported. Run 'vitals setup' and use an elevated terminal.");
             return 1;
         }
 
@@ -83,6 +85,66 @@ public static class Commands
         }
 
         return 0;
+    }
+
+    private static int Setup(CliOptions options, AppConfig config)
+    {
+        if (options.Check)
+        {
+            var installed = LhmSource.IsPawnIoInstalled();
+            Console.WriteLine(installed
+                ? "PawnIO is installed."
+                : $"PawnIO is not installed (vitals can install {PawnIoSetup.Version}).");
+            return installed ? 0 : 1;
+        }
+
+        if (!LhmSource.IsProcessElevated())
+        {
+            Console.Error.WriteLine("vitals: setup needs administrator rights.");
+            Console.Error.WriteLine("        run 'vitals.cmd setup' or start an elevated terminal.");
+            return 1;
+        }
+
+        if (LhmSource.IsPawnIoInstalled() && !options.Force)
+        {
+            Console.WriteLine("PawnIO is already installed.");
+        }
+        else
+        {
+            if (!options.Yes && !SetupPrompt.Confirm(Console.Out, Console.In))
+            {
+                Console.WriteLine("PawnIO was not installed.");
+                return 1;
+            }
+
+            var result = PawnIoSetup.EnsureInstalled(new PawnIoSetupOptions
+            {
+                Force = options.Force,
+                Debug = options.Debug,
+            });
+
+            if (result == PawnIoSetupResult.Failed)
+            {
+                return 1;
+            }
+
+            if (result == PawnIoSetupResult.RebootRequired)
+            {
+                Console.WriteLine("Restart Windows before using the PawnIO-backed sensors.");
+                if (!options.NoStart)
+                {
+                    Console.WriteLine("Press Enter to start the dashboard, or Ctrl+C to exit.");
+                    Console.ReadLine();
+                }
+            }
+        }
+
+        if (options.NoStart)
+        {
+            return 0;
+        }
+
+        return TuiApp.Run(options, config, setupPrompt: false);
     }
 
     private static int Snapshot(CliOptions options, AppConfig config)

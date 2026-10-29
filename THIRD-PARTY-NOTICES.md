@@ -50,14 +50,15 @@ Full text: [`licenses/Apache-2.0.txt`](licenses/Apache-2.0.txt)
 
 ## Optional, not bundled
 
-### PawnIO
+### PawnIO 2.2.0
 
 - Project: <https://pawnio.eu> / <https://github.com/namazso/PawnIO>
 - Used for: signed kernel driver that provides low-level CPU and motherboard
   sensor access to LibreHardwareMonitor.
-- vitals does not bundle, download or install PawnIO at runtime. It only
-  detects whether PawnIO is already installed and points the user at it.
-  Refer to the upstream project for its licensing terms.
+- vitals does not bundle PawnIO. On request, `vitals setup` or the first-launch
+  prompt downloads the official installer from the upstream GitHub release,
+  verifies its pinned SHA-256, and runs the vendor's silent installer after
+  consent. Refer to the upstream project for its licensing terms.
 
 ## Test-only dependencies
 

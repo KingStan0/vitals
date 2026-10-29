@@ -4,12 +4,13 @@ using Vitals.Config;
 using Vitals.Export;
 using Vitals.Sampling;
 using Vitals.Sensors;
+using Vitals.Setup;
 
 namespace Vitals.Ui;
 
 public static class TuiApp
 {
-    public static int Run(CliOptions cli, AppConfig config)
+    public static int Run(CliOptions cli, AppConfig config, bool setupPrompt = true)
     {
         if (cli.RenderOnce)
         {
@@ -21,6 +22,29 @@ public static class TuiApp
             Console.Error.WriteLine("vitals: the dashboard needs an interactive terminal.");
             Console.Error.WriteLine("        use 'vitals snapshot --json' or 'vitals watch --json' instead.");
             return 1;
+        }
+
+        if (setupPrompt &&
+            SetupPrompt.ShouldPrompt(
+                config,
+                cli,
+                LhmSource.IsPawnIoInstalled(),
+                LhmSource.IsProcessElevated()) &&
+            SetupPrompt.Confirm(Console.Out, Console.In))
+        {
+            var result = PawnIoSetup.EnsureInstalled(new PawnIoSetupOptions { Debug = cli.Debug });
+            if (result == PawnIoSetupResult.RebootRequired)
+            {
+                Console.WriteLine("Restart Windows before using the PawnIO-backed sensors.");
+                Console.WriteLine("Press Enter to start the dashboard.");
+                Console.ReadLine();
+            }
+            else if (result == PawnIoSetupResult.Failed)
+            {
+                Console.WriteLine("Continuing without PawnIO; some sensors will be unavailable.");
+                Console.WriteLine("Press Enter to start the dashboard.");
+                Console.ReadLine();
+            }
         }
 
         Terminal.EnableVirtualTerminal();

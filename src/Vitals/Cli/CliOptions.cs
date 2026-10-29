@@ -19,6 +19,14 @@ public sealed class CliOptions
 
     public bool RenderOnce { get; private set; }
 
+    public bool Yes { get; private set; }
+
+    public bool NoStart { get; private set; }
+
+    public bool Check { get; private set; }
+
+    public bool Force { get; private set; }
+
     public bool ShowHelp { get; private set; }
 
     public bool ShowVersion { get; private set; }
@@ -89,6 +97,18 @@ public sealed class CliOptions
                 case "--render-once":
                     options.RenderOnce = true;
                     continue;
+                case "--yes":
+                    options.Yes = true;
+                    continue;
+                case "--no-start":
+                    options.NoStart = true;
+                    continue;
+                case "--check":
+                    options.Check = true;
+                    continue;
+                case "--force":
+                    options.Force = true;
+                    continue;
                 case "--interval":
                 case "-i":
                     if (!TryTakeValue(args, ref i, out var interval) ||
@@ -152,6 +172,7 @@ public sealed class CliOptions
                 "snapshot" => "snapshot",
                 "watch" => "watch",
                 "export" => "export",
+                "setup" => "setup",
                 _ => string.Empty,
             };
 
@@ -170,6 +191,18 @@ public sealed class CliOptions
 
     private void Validate()
     {
+        if (Command == "setup")
+        {
+            ValidateSetup();
+            return;
+        }
+
+        if (Yes || NoStart || Check || Force)
+        {
+            Error = "--yes, --no-start, --check and --force are only supported by setup";
+            return;
+        }
+
         if (Command == "tui")
         {
             if (Json)
@@ -221,6 +254,39 @@ public sealed class CliOptions
             {
                 Error = "--render-once is only supported by the dashboard";
             }
+        }
+    }
+
+    private void ValidateSetup()
+    {
+        if (Json)
+        {
+            Error = "--json is not supported by setup";
+            return;
+        }
+
+        if (IntervalMs is not null || Duration is not null || OutPath is not null || RenderOnce || NoDriver)
+        {
+            Error = "setup does not accept sampling, output or driver-free options";
+            return;
+        }
+
+        if (!Check)
+        {
+            return;
+        }
+
+        if (Yes)
+        {
+            Error = "--yes cannot be used with --check";
+        }
+        else if (NoStart)
+        {
+            Error = "--no-start cannot be used with --check";
+        }
+        else if (Force)
+        {
+            Error = "--force cannot be used with --check";
         }
     }
 
@@ -317,6 +383,7 @@ public sealed class CliOptions
           vitals watch [--json]            stream readings (NDJSON with --json)
           vitals export --out FILE         record a session to CSV
           vitals sensors [--json]          dump every raw sensor (for bug reports)
+          vitals setup [options]           install PawnIO, then start the dashboard
 
         OPTIONS
           -i, --interval <ms>    sampling interval (TUI, watch, export), default 1000
@@ -328,9 +395,16 @@ public sealed class CliOptions
               --ascii            ASCII-only glyphs (TUI and human-readable output)
               --no-color         disable colour
               --render-once      render one dashboard frame and exit (testing)
+              --yes              assume yes for setup prompts
+              --no-start         install only; do not start the dashboard
+              --check            report whether PawnIO is installed (setup)
+              --force            reinstall or upgrade PawnIO (setup)
               --debug            verbose errors
               --version          print the version and exit
           -h, --help             this text
+
+        Setup downloads the official PawnIO installer from GitHub and verifies
+        its SHA-256 before running it. PawnIO is never bundled with vitals.
 
         TUI KEYS
           q quit    space pause    r reset peaks    s sort processes

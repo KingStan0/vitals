@@ -49,9 +49,13 @@ Examples of out-of-scope issues:
 
 ## Design notes
 
-- `vitals` has no telemetry and makes no outbound network connections.
-- It never downloads, bundles or installs a kernel driver. LibreHardwareMonitor
-  may use an existing PawnIO installation, which is a separate signed product.
+- `vitals` has no telemetry. The only outbound request is the opt-in PawnIO
+  setup download from the official GitHub release.
+- It never bundles a kernel driver. `vitals setup`, or the first-launch prompt
+  in an elevated dashboard, downloads the official PawnIO installer only after
+  consent, verifies a pinned SHA-256, and runs the vendor's silent installer.
+  LibreHardwareMonitor may then use the installed PawnIO driver, which is a
+  separate signed product.
 - Release zips include a SHA-256 file and a GitHub build-provenance attestation.
   See the README for verification commands.
 - The executable is currently unsigned. Code signing depends on obtaining a

@@ -4,6 +4,7 @@ Start with these commands:
 
 ```powershell
 .\vitals.exe --version
+.\vitals.exe setup --check
 .\vitals.exe snapshot
 .\vitals.exe sensors --json > sensors.json
 ```
@@ -27,15 +28,49 @@ Do not disable SmartScreen or Defender globally.
 
 Those sensors need both an elevated process and a PawnIO installation.
 
-- Launch the dashboard with `vitals.cmd` and accept the UAC prompt.
-- Install PawnIO from <https://pawnio.eu>. `vitals` does not install it.
-- Confirm `vitals snapshot --json` reports `"pawnIoInstalled": true` and
+- Launch the dashboard with `vitals.cmd` and accept the UAC prompt, then accept
+  the first-launch PawnIO prompt. Alternatively run `vitals setup` from any
+  terminal; it requests elevation itself.
+- Confirm `vitals setup --check` reports that PawnIO is installed, or that
+  `vitals snapshot --json` reports `"pawnIoInstalled": true` and
   `"elevated": true`.
+- If PawnIO was just installed and the installer asked for a restart, restart
+  Windows before expecting the sensors.
 - Some boards expose no NCT6687D-compatible chip. In that case only CPU/GPU
   sensors will appear.
 
 `vitals snapshot --json` works without elevation; missing values are `null`, not
 fake zeros.
+
+## PawnIO setup fails
+
+`vitals setup` downloads the installer from the official GitHub release and
+verifies its SHA-256 before running it. If the download or install fails, the
+message says which step failed.
+
+- **Network or proxy errors.** The download needs HTTPS access to
+  `github.com` and GitHub's release-asset host (currently
+  `release-assets.githubusercontent.com`). Configure the system proxy, or
+  download `PawnIO_setup.exe` from
+  <https://github.com/namazso/PawnIO.Setup/releases> and install it manually.
+  `vitals` never falls back to an unverified mirror.
+- **SHA-256 mismatch.** The downloaded file did not match the pinned hash and
+  was not run. This can mean a corrupted download, an intercepting proxy, or a
+  changed upstream release. Retry; the rejected temporary file is deleted
+  automatically. If the mismatch persists, report it as a security issue
+  instead of bypassing the check.
+- **UAC cancelled or denied.** `vitals setup` needs administrator rights. Run it
+  again and accept the prompt, or start an elevated terminal. `setup --check`
+  does not need elevation.
+- **Antivirus or group policy blocks the installer.** Some managed machines
+  block unknown installers or driver installation. Ask your administrator, or
+  install PawnIO manually from the official release page.
+- **Restart required.** If the installer returns `3010` or `1641`, PawnIO is
+  installed but Windows must restart before the driver is active. `vitals` never
+  restarts automatically.
+- **Installer reports success but PawnIO is not detected.** Check the Windows
+  installer logs, reboot, and run `vitals setup --check` again. If it still
+  fails, include the `--debug` output in a bug report.
 
 ## No disk throughput
 

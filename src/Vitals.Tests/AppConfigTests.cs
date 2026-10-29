@@ -88,4 +88,25 @@ public sealed class AppConfigTests
         Assert.Equal(1000, config.IntervalMs);
         Assert.NotNull(config.Thresholds);
     }
+
+    [Fact]
+    public void Prompt_for_pawn_io_defaults_to_true_and_can_be_disabled()
+    {
+        Assert.True(new AppConfig().PromptForPawnIo);
+
+        var path = Path.Combine(Path.GetTempPath(), $"vitals-config-{Guid.NewGuid():N}.json");
+        try
+        {
+            File.WriteAllText(path, """{ "promptForPawnIo": false }""");
+
+            var config = AppConfig.Load(path, out var warning);
+
+            Assert.Null(warning);
+            Assert.False(config.PromptForPawnIo);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }

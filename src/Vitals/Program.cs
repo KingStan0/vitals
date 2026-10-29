@@ -1,5 +1,7 @@
 using Vitals.Cli;
 using Vitals.Config;
+using Vitals.Sensors;
+using Vitals.Setup;
 using Vitals.Ui;
 
 namespace Vitals;
@@ -45,6 +47,13 @@ internal static class Program
             Console.Error.WriteLine($"vitals: {error}");
             Console.Error.WriteLine("run 'vitals --help'.");
             return 2;
+        }
+
+        // Setup needs an elevated token to install the driver. Relaunch through
+        // UAC before loading config so warnings are not printed twice.
+        if (options.Command == "setup" && !options.Check && !LhmSource.IsProcessElevated())
+        {
+            return Elevation.RelaunchElevated(args);
         }
 
         var config = AppConfig.Load(options.ConfigPath, out var warning);

@@ -17,9 +17,11 @@ NDJSON, CSV recording, and a raw sensor dump you can attach to bug reports.
 - **Scriptable**: `snapshot --json`, `watch --json`, `export` to CSV.
 - **Multi-GPU aware**: all adapters are exported in JSON; the dashboard shows
   the primary (largest / most capable) GPU.
-- **Driver-aware, not driver-bundling**: detects PawnIO and tells you what is
-  missing. It never downloads or installs a driver.
-- **No telemetry, no outbound connections.** Sensor data stays on your machine.
+- **Driver-aware, not driver-bundling**: detects PawnIO and can install the
+  official signed driver on request. It is never bundled; the opt-in setup
+  downloads it from GitHub and verifies its SHA-256.
+- **No telemetry.** The only outbound request is the opt-in PawnIO setup
+  download; sensor data stays on your machine.
 - **Small and efficient**: one sampling thread, no per-widget polling, and a
   single-file self-contained publish.
 
@@ -32,8 +34,10 @@ NDJSON, CSV recording, and a raw sensor dump you can attach to bug reports.
    `CHANGELOG.md`, `LICENSE`, `THIRD-PARTY-NOTICES.md`, full dependency license
    texts in `licenses/`, `config.example.json`, the JSON schema under `docs/`,
    and the icon/banner assets.
-3. Optional: install [PawnIO](https://pawnio.eu) if you want CPU package and
-   motherboard temperatures/power. `vitals` works without it.
+3. Optional: run `vitals setup` (or accept the first-launch prompt) to install
+   [PawnIO](https://pawnio.eu) if you want CPU package and motherboard
+   temperatures/power. It downloads the installer, so it needs internet access.
+   `vitals` works without it.
 4. Double-click `vitals.cmd`, or open a terminal in that folder:
 
 ```powershell
@@ -41,10 +45,11 @@ NDJSON, CSV recording, and a raw sensor dump you can attach to bug reports.
 .\vitals.exe snapshot --json  # scripted, no elevation needed
 ```
 
-`vitals.cmd` only requests administrator rights for the interactive dashboard.
-Headless commands (`snapshot`, `watch`, `export`, `sensors`, `--render-once`,
-`--help`, `--version`) stay in the current console so pipes and redirects keep
-working, even when options come before the command.
+`vitals.cmd` requests administrator rights for the interactive dashboard and
+for `vitals setup`. Headless commands (`snapshot`, `watch`, `export`, `sensors`,
+`setup --check`, `--render-once`, `--help`, `--version`) stay in the current
+console so pipes and redirects keep working, even when options come before the
+command.
 Running `vitals.exe` directly still gives you CPU load, GPU, memory, disks,
 network and usually GPU temperatures, with missing readings shown as `n/a`.
 
@@ -107,8 +112,9 @@ q quit   space pause   r peaks   s sort   t theme   e export   [ ] interval   in
   drawing and true colour.
 - To build: the [.NET 10 SDK](https://dot.net) (10.0.402 or newer).
 - Optional, for CPU and motherboard temperatures/power: a signed
-  [PawnIO](https://pawnio.eu) installation. `vitals` detects it and never bundles
-  or installs it for you.
+  [PawnIO](https://pawnio.eu) installation. `vitals setup` downloads the official
+  installer on request (internet access required) and verifies its SHA-256; it
+  is never bundled.
 
 GPU sensors come from LibreHardwareMonitor and usually work without PawnIO.
 Disk throughput needs an elevated process; CPU/motherboard sensors do too.
@@ -162,6 +168,9 @@ vitals export                record CSV until Ctrl+C (auto-named file)
 vitals export --out run.csv  record to a specific file
 vitals sensors               every raw sensor LHM exposes
 vitals sensors --json        raw sensor array, useful in bug reports
+vitals setup                 install PawnIO, then start the dashboard
+vitals setup --check         report whether PawnIO is installed
+vitals setup --no-start      install only; do not start the dashboard
 vitals --version             print the version and exit
 vitals --help
 ```
@@ -178,6 +187,10 @@ Options:
     --ascii            ASCII-only glyphs (TUI and human-readable output)
     --no-color         disable colour
     --render-once      render one dashboard frame and exit (testing)
+    --yes              assume yes for setup prompts
+    --no-start         install only; do not start the dashboard (setup)
+    --check            report whether PawnIO is installed (setup)
+    --force            reinstall or upgrade PawnIO (setup)
     --debug            verbose errors
     --version          print the version and exit
 -h, --help
@@ -187,7 +200,8 @@ Options:
 successfully even if another option is invalid.
 
 Exit codes are `0` for success, `1` for a runtime failure and `2` for invalid
-arguments.
+arguments. `vitals setup --check` exits `0` when PawnIO is installed and `1`
+when it is missing.
 
 ### TUI keys
 
@@ -217,9 +231,21 @@ Without elevation or PawnIO you still get:
 You will not get CPU package temperature/power or NCT6687D motherboard sensors.
 Missing readings are rendered as `n/a`, never as a fake `0`.
 
-PawnIO is a separate, signed kernel driver used by LibreHardwareMonitor. Install
-it from <https://pawnio.eu> if you want those sensors. `vitals` only checks the
-registry for it; it does not download, install, or ship any driver.
+PawnIO is a separate, signed kernel driver used by LibreHardwareMonitor. Run
+`vitals setup` to install it, or accept the first-launch prompt in an elevated
+dashboard. `vitals setup` downloads the official installer from GitHub, verifies
+its pinned SHA-256, and runs it silently with administrator rights. It never
+bundles the installer, never installs without consent, and never restarts
+Windows automatically. If the installer reports that a restart is required,
+`vitals` tells you and leaves the decision to you.
+
+`vitals setup --check` reports the current state without elevation or changes.
+Headless commands (`snapshot`, `watch`, `export`, `sensors`) never prompt for or
+install PawnIO. Set `"promptForPawnIo": false` in the config to suppress the
+first-launch prompt; `--no-driver` and `--render-once` also skip it.
+
+For unattended installs, use `vitals setup --yes --no-start`. `--yes` skips the
+consent prompt, so only use it in automation you control.
 
 ## Configuration
 
@@ -233,6 +259,7 @@ back to defaults. Invalid values are clamped.
   "processCount": 8,
   "historySeconds": 300,
   "ascii": false,
+  "promptForPawnIo": true,
   "theme": "default",
   "thresholds": {
     "cpuTemp": { "warn": 85, "crit": 95 },
@@ -260,6 +287,8 @@ The dashboard adapts below 100 columns by stacking panels in a single column.
   Sparklines always retain the most recent 300 samples.
 - `ascii` and `theme` — dashboard defaults; `--ascii` and the `t` key override
   them for the current run.
+- `promptForPawnIo` — show the first-launch PawnIO install prompt in an
+  elevated dashboard (default `true`). It never affects headless commands.
 - `thresholds` — `warn`/`crit` values used for colours; each is clamped to
   0–200 and `crit` is kept at or above `warn`.
 

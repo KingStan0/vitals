@@ -8,12 +8,23 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `vitals setup` installs the optional PawnIO driver. It downloads the official
+  installer from GitHub, verifies a pinned SHA-256, and runs the vendor's silent
+  installer after consent. `--check`, `--yes`, `--no-start` and `--force` cover
+  status checks, unattended installs and upgrades.
+- An elevated dashboard offers the same install when it starts without PawnIO.
+  The prompt can be disabled with `promptForPawnIo: false` and is skipped by
+  `--no-driver`, `--render-once` and all headless commands.
 - `watch --out FILE` writes the stream to a file.
 - CI now fails on vulnerable NuGet packages and verifies formatting.
 - Release packaging propagates the tag version to the binary and smoke-tests it.
 
 ### Changed
 
+- The network and install policy is now explicit: `vitals` still has no
+  telemetry and never bundles a driver, but the opt-in PawnIO setup may make one
+  HTTPS request to the official GitHub release. Installation always requires
+  consent, uses the verified installer, and never reboots automatically.
 - Sampling reuses the warm-up snapshot instead of taking three samples, so
   one-shot commands perform one LibreHardwareMonitor update and report real
   CPU/disk/network rates on the first row.
@@ -35,8 +46,9 @@ All notable changes to this project are documented here. The format follows
   being rendered as missing.
 - `watch` and `export` wake immediately on Ctrl+C and cap their final sleep at
   the remaining `--duration`, so short runs no longer overshoot.
-- `vitals.cmd` detects headless commands in any argument position and treats
-  `--render-once` as headless.
+- `vitals.cmd` detects headless commands in any argument position, treats
+  `--render-once` and `setup --check` as headless, and waits for elevated
+  `setup` runs so their exit codes reach scripts.
 - Human-readable headless output and `--render-once` honour `--ascii` fully.
 - The TUI refreshes when paused, when a toast appears or expires, and when peaks
   are reset.

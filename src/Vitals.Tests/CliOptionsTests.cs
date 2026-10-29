@@ -187,4 +187,65 @@ public sealed class CliOptionsTests
 
         Assert.NotNull(options.Error);
     }
+
+    [Fact]
+    public void Accepts_setup_command_and_install_flags()
+    {
+        var options = CliOptions.Parse(new[] { "setup", "--yes", "--no-start", "--force" });
+
+        Assert.Equal("setup", options.Command);
+        Assert.True(options.Yes);
+        Assert.True(options.NoStart);
+        Assert.True(options.Force);
+        Assert.Null(options.Error);
+    }
+
+    [Fact]
+    public void Accepts_setup_check()
+    {
+        var options = CliOptions.Parse(new[] { "setup", "--check" });
+
+        Assert.Equal("setup", options.Command);
+        Assert.True(options.Check);
+        Assert.Null(options.Error);
+    }
+
+    [Theory]
+    [InlineData("--json")]
+    [InlineData("--interval", "500")]
+    [InlineData("--duration", "10s")]
+    [InlineData("--out", "x")]
+    [InlineData("--render-once")]
+    [InlineData("--no-driver")]
+    public void Rejects_sampling_and_output_options_for_setup(params string[] extra)
+    {
+        var args = new[] { "setup" }.Concat(extra).ToArray();
+        var options = CliOptions.Parse(args);
+
+        Assert.NotNull(options.Error);
+    }
+
+    [Theory]
+    [InlineData("--yes")]
+    [InlineData("--no-start")]
+    [InlineData("--force")]
+    public void Rejects_install_flags_with_setup_check(string flag)
+    {
+        var options = CliOptions.Parse(new[] { "setup", "--check", flag });
+
+        Assert.NotNull(options.Error);
+    }
+
+    [Theory]
+    [InlineData("snapshot", "--yes")]
+    [InlineData("watch", "--no-start")]
+    [InlineData("tui", "--check")]
+    [InlineData("sensors", "--force")]
+    public void Rejects_setup_flags_for_other_commands(string command, string flag)
+    {
+        var options = CliOptions.Parse(new[] { command, flag });
+
+        Assert.NotNull(options.Error);
+        Assert.Contains("setup", options.Error!, StringComparison.Ordinal);
+    }
 }

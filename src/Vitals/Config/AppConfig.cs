@@ -56,6 +56,8 @@ public sealed class AppConfig
 
     public bool Ascii { get; set; }
 
+    public bool PromptForPawnIo { get; set; } = true;
+
     public string Theme { get; set; } = "default";
 
     public Thresholds Thresholds { get; set; } = new();

@@ -4,6 +4,7 @@
   "processCount": 8,
   "historySeconds": 300,
   "ascii": false,
+  "promptForPawnIo": true,
   "theme": "default",
   "thresholds": {
     "cpuTemp": { "warn": 85, "crit": 95 },

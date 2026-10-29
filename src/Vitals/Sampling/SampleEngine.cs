@@ -38,7 +38,7 @@ public sealed class SampleEngine : IDisposable
         }
         else if (!_lhm.PawnIoInstalled)
         {
-            notes.Add("PawnIO missing: install PawnIO for CPU and motherboard sensors");
+            notes.Add("PawnIO missing: run 'vitals setup' for CPU and motherboard sensors");
         }
         else if (!_lhm.Elevated)
         {

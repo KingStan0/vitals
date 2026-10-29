@@ -14,7 +14,7 @@ body:
     attributes:
       label: Version
       description: Output of `vitals --version`
-      placeholder: vitals 0.2.0
+      placeholder: vitals 0.3.0
     validations:
       required: true
   - type: input

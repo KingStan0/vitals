@@ -350,7 +350,7 @@ such as `usedBytes`, `usedPercent` and `commitBytes`.
   "processes": [ { "pid": 8636, "name": "Discord", "cpuPercent": 1.5, "workingSetBytes": 812000000 } ],
   "temps": [ { "label": "VRM MOS", "celsius": 81.5, "group": "board" } ],
   "readings": [ { "id": "/amdcpu/0/load/0", "source": "lhm", "hardware": "AMD Ryzen 5 5600G", "name": "CPU Total", "kind": "Load", "value": 21.3, "unit": "%" } ],
-  "status": { "elevated": true, "lhmAvailable": true, "lhmError": null, "pawnIoInstalled": true, "notes": [], "appVersion": "0.2.0" }
+  "status": { "elevated": true, "lhmAvailable": true, "lhmError": null, "pawnIoInstalled": true, "notes": [], "appVersion": "0.3.0" }
 }
 ```
 

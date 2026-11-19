@@ -17,8 +17,6 @@ public sealed class RenderOptions
 {
     public required AppConfig Config { get; init; }
 
-    public required Theme Theme { get; set; }
-
     public required bool Ascii { get; init; }
 
     public ProcessSort Sort { get; set; } = ProcessSort.Cpu;
@@ -124,22 +122,21 @@ public static class Widgets
 
     private static IRenderable BuildHeader(Snapshot snapshot, RenderOptions options)
     {
-        var theme = options.Theme;
         var dot = SystemInfo.Dot(options.Ascii);
 
         var identity = new List<string>
         {
-            $"[bold {theme.Accent}]{Markup.Escape(Fmt.OneLine(Environment.MachineName))}[/]",
-            $"[{theme.Muted}]{Markup.Escape(Fmt.OneLine(SystemInfo.CpuName))}[/]",
+            $"[bold {Theme.Accent}]{Markup.Escape(Fmt.OneLine(Environment.MachineName))}[/]",
+            $"[{Theme.Muted}]{Markup.Escape(Fmt.OneLine(SystemInfo.CpuName))}[/]",
         };
 
         if (snapshot.Gpu is { } gpu)
         {
-            identity.Add($"[{theme.Muted}]{Markup.Escape(Fmt.OneLine(gpu.Name))}[/]");
+            identity.Add($"[{Theme.Muted}]{Markup.Escape(Fmt.OneLine(gpu.Name))}[/]");
         }
 
-        identity.Add($"[{theme.Muted}]{Markup.Escape(Fmt.OneLine(SystemInfo.OsName))}[/]");
-        identity.Add($"[{theme.Muted}]up {Fmt.Uptime()}[/]");
+        identity.Add($"[{Theme.Muted}]{Markup.Escape(Fmt.OneLine(SystemInfo.OsName))}[/]");
+        identity.Add($"[{Theme.Muted}]up {Fmt.Uptime()}[/]");
 
         // The identity row cannot wrap without stealing a dashboard row, so on
         // narrow terminals fall back to one truncated, accent-coloured line.
@@ -156,7 +153,7 @@ public static class Widgets
         if (!string.Equals(identityFitted, identityText, StringComparison.Ordinal))
         {
             identity.Clear();
-            identity.Add($"[{theme.Accent}]{Markup.Escape(identityFitted)}[/]");
+            identity.Add($"[{Theme.Accent}]{Markup.Escape(identityFitted)}[/]");
         }
 
         var statusBudget = Math.Max(20, options.Width);
@@ -166,11 +163,11 @@ public static class Widgets
 
         if (options.Paused)
         {
-            AddStatus("[bold yellow]paused[/]", "paused");
+            AddStatus($"[bold {Theme.Yellow}]paused[/]", "paused");
         }
         else
         {
-            AddStatus("[green]live[/]", "live");
+            AddStatus($"[{Theme.Green}]live[/]", "live");
         }
 
         // Errors come before warnings and toasts so a narrow terminal drops the
@@ -179,34 +176,34 @@ public static class Widgets
         if (snapshot.Status.LhmError is { } error)
         {
             var text = Fmt.Truncate(error, errorBudget, options.Ascii);
-            AddStatus($"[red]{Markup.Escape(text)}[/]", text);
+            AddStatus($"[{Theme.Red}]{Markup.Escape(text)}[/]", text);
         }
 
         if (options.Error is { } samplingError)
         {
             var text = Fmt.Truncate(samplingError, errorBudget, options.Ascii);
-            AddStatus($"[red]{Markup.Escape(text)}[/]", text);
+            AddStatus($"[{Theme.Red}]{Markup.Escape(text)}[/]", text);
         }
 
         if (!snapshot.Status.Elevated)
         {
-            AddStatus("[yellow]no admin[/]", "no admin");
+            AddStatus($"[{Theme.Yellow}]no admin[/]", "no admin");
         }
 
         if (!snapshot.Status.PawnIoInstalled)
         {
-            AddStatus("[yellow]no PawnIO[/]", "no PawnIO");
+            AddStatus($"[{Theme.Yellow}]no PawnIO[/]", "no PawnIO");
         }
 
         if (!snapshot.Status.LhmAvailable)
         {
-            AddStatus("[yellow]driver off[/]", "driver off");
+            AddStatus($"[{Theme.Yellow}]driver off[/]", "driver off");
         }
 
         if (options.Toast is { } toast)
         {
             var text = Fmt.Truncate(toast, Math.Min(70, Math.Max(1, statusBudget - 10)), options.Ascii);
-            AddStatus($"[bold {theme.Accent}]{Markup.Escape(text)}[/]", text);
+            AddStatus($"[bold {Theme.Accent}]{Markup.Escape(text)}[/]", text);
         }
 
         var keptStatus = new List<string>();
@@ -231,40 +228,39 @@ public static class Widgets
 
         return new Markup(
             $"{string.Join($"  {dot}  ", identity)}\n" +
-            $"[{theme.Muted}]{string.Join($"  {dot}  ", keptStatus)}[/]\n" +
-            $"[{theme.Muted}]{Markup.Escape(Fmt.Truncate(detail, Math.Max(20, options.Width - 4), options.Ascii))}[/]");
+            $"[{Theme.Muted}]{string.Join($"  {dot}  ", keptStatus)}[/]\n" +
+            $"[{Theme.Muted}]{Markup.Escape(Fmt.Truncate(detail, Math.Max(20, options.Width - 4), options.Ascii))}[/]");
     }
 
     private static IRenderable BuildCpu(Snapshot snapshot, History history, RenderOptions options, int width)
     {
         var thresholds = options.Config.Thresholds;
-        var theme = options.Theme;
         var load = snapshot.CpuLoadPercent;
-        var color = load >= 90 ? "red" : load >= 70 ? "yellow" : "green";
+        var color = load >= 90 ? Theme.Red : load >= 70 ? Theme.Yellow : Theme.Green;
         var (gaugeWidth, sparkWidth) = HeadlineWidths(width);
 
         var lines = new List<IRenderable>
         {
             new Markup($"[bold {color}]{load,3:0}%[/]  {Fmt.Gauge(load, gaugeWidth, color, options.Ascii)}  " +
-                       $"[{theme.Muted}]{Fmt.Spark(history.CpuLoad.Values, sparkWidth, options.Ascii)}[/]"),
+                       $"[{Theme.Muted}]{Fmt.Spark(history.CpuLoad.Values, sparkWidth, options.Ascii)}[/]"),
         };
 
         var details = new List<string>
         {
-            $"[grey]temp[/] {Fmt.TempMarkup(snapshot.CpuTempC, thresholds.CpuTemp, options.Ascii)}",
+            $"[{Theme.Overlay}]temp[/] {Fmt.TempMarkup(snapshot.CpuTempC, thresholds.CpuTemp, options.Ascii)}",
         };
 
         if (snapshot.CpuPowerW is { } power && width >= 44)
         {
-            details.Add($"[grey]pkg[/] [{theme.Accent}]{power:0} W[/]");
+            details.Add($"[{Theme.Overlay}]pkg[/] [{Theme.Accent}]{power:0} W[/]");
         }
 
         if (snapshot.CpuClockMhz is { } clock && width >= 60)
         {
-            details.Add($"[grey]clock[/] [{theme.Accent}]{clock:0} MHz[/]");
+            details.Add($"[{Theme.Overlay}]clock[/] [{Theme.Accent}]{clock:0} MHz[/]");
         }
 
-        details.Add($"[grey]peak[/] [{theme.Accent}]{history.CpuLoad.Peak:0}%[/]");
+        details.Add($"[{Theme.Overlay}]peak[/] [{Theme.Accent}]{history.CpuLoad.Peak:0}%[/]");
         lines.Add(new Markup(string.Join("   ", details)));
 
         if (snapshot.Cores.Count > 0)
@@ -278,8 +274,8 @@ public static class Widgets
                     .Select(core =>
                     {
                         var percent = core.LoadPercent ?? 0;
-                        var coreColor = percent >= 90 ? "red" : percent >= 70 ? "yellow" : "green";
-                        return $"[grey]c{core.Index}[/] [{coreColor}]{Fmt.Bar(percent, 5, options.Ascii)}[/] {percent,3:0}%";
+                        var coreColor = percent >= 90 ? Theme.Red : percent >= 70 ? Theme.Yellow : Theme.Green;
+                        return $"[{Theme.Overlay}]c{core.Index}[/] [{coreColor}]{Fmt.Bar(percent, 5, options.Ascii)}[/] {percent,3:0}%";
                     });
 
                 lines.Add(new Markup(string.Join("  ", cells)));
@@ -287,7 +283,7 @@ public static class Widgets
         }
         else if (snapshot.Status.LhmAvailable)
         {
-            lines.Add(new Markup($"[{theme.Muted}]per-core sensors unavailable[/]"));
+            lines.Add(new Markup($"[{Theme.Muted}]per-core sensors unavailable[/]"));
         }
 
         return Pane("CPU", width, options.Ascii, lines.ToArray());
@@ -295,8 +291,6 @@ public static class Widgets
 
     private static IRenderable BuildGpu(Snapshot snapshot, History history, RenderOptions options, int width)
     {
-        var theme = options.Theme;
-
         if (snapshot.Gpu is not { } gpu)
         {
             var message = snapshot.Status.LhmAvailable
@@ -304,7 +298,7 @@ public static class Widgets
                 : snapshot.Status.LhmError is not null
                     ? "no GPU sensors (install PawnIO and run elevated)"
                     : "no GPU sensors (driver disabled)";
-            return Pane("GPU", width, options.Ascii, new Markup($"[{theme.Muted}]{message}[/]"));
+            return Pane("GPU", width, options.Ascii, new Markup($"[{Theme.Muted}]{message}[/]"));
         }
 
         var thresholds = options.Config.Thresholds;
@@ -313,30 +307,30 @@ public static class Widgets
         var lines = new List<IRenderable>();
         if (gpu.LoadPercent is { } load)
         {
-            var color = load >= 90 ? "red" : load >= 70 ? "yellow" : "green";
+            var color = load >= 90 ? Theme.Red : load >= 70 ? Theme.Yellow : Theme.Green;
             lines.Add(new Markup($"[bold {color}]{load,3:0}%[/]  {Fmt.Gauge(load, gaugeWidth, color, options.Ascii)}  " +
-                                 $"[{theme.Muted}]{Fmt.Spark(history.GpuLoad.Values, sparkWidth, options.Ascii)}[/]"));
+                                 $"[{Theme.Muted}]{Fmt.Spark(history.GpuLoad.Values, sparkWidth, options.Ascii)}[/]"));
         }
         else
         {
             // Some drivers expose temperature and power but not load. An empty
             // 0% gauge reads as idle instead of unavailable.
-            lines.Add(new Markup($"[{theme.Muted}]load n/a[/]"));
+            lines.Add(new Markup($"[{Theme.Muted}]load n/a[/]"));
         }
 
         var temperatures = new List<string>
         {
-            $"[grey]edge[/] {Fmt.TempMarkup(gpu.EdgeC, thresholds.GpuEdge, options.Ascii)}",
+            $"[{Theme.Overlay}]edge[/] {Fmt.TempMarkup(gpu.EdgeC, thresholds.GpuEdge, options.Ascii)}",
         };
 
         if (gpu.HotspotC is not null && width >= 30)
         {
-            temperatures.Add($"[grey]hot[/] {Fmt.TempMarkup(gpu.HotspotC, thresholds.GpuHotspot, options.Ascii)}");
+            temperatures.Add($"[{Theme.Overlay}]hot[/] {Fmt.TempMarkup(gpu.HotspotC, thresholds.GpuHotspot, options.Ascii)}");
         }
 
         if (gpu.MemoryTempC is not null && width >= 44)
         {
-            temperatures.Add($"[grey]vram[/] {Fmt.TempMarkup(gpu.MemoryTempC, thresholds.GpuMemory, options.Ascii)}");
+            temperatures.Add($"[{Theme.Overlay}]vram[/] {Fmt.TempMarkup(gpu.MemoryTempC, thresholds.GpuMemory, options.Ascii)}");
         }
 
         lines.Add(new Markup(string.Join("   ", temperatures)));
@@ -370,7 +364,7 @@ public static class Widgets
         var factText = FitParts(facts, Math.Max(8, width - 4), options.Ascii);
         if (factText.Length > 0)
         {
-            lines.Add(new Markup($"[{theme.Muted}]{Markup.Escape(factText)}[/]"));
+            lines.Add(new Markup($"[{Theme.Muted}]{Markup.Escape(factText)}[/]"));
         }
 
         return Pane("GPU", width, options.Ascii, lines.ToArray());
@@ -378,10 +372,9 @@ public static class Widgets
 
     private static IRenderable BuildMemory(Snapshot snapshot, History history, RenderOptions options, int width)
     {
-        var theme = options.Theme;
         if (snapshot.Memory is not { } memory)
         {
-            return Pane("MEMORY", width, options.Ascii, new Markup($"[{theme.Muted}]no memory data[/]"));
+            return Pane("MEMORY", width, options.Ascii, new Markup($"[{Theme.Muted}]no memory data[/]"));
         }
 
         var color = Fmt.LevelColor(memory.UsedPercent, options.Config.Thresholds.Memory);
@@ -390,20 +383,20 @@ public static class Widgets
 
         var line1 = new Markup(
             $"[bold {color}]{memory.UsedPercent,3:0}%[/]  {Fmt.Gauge(memory.UsedPercent, gaugeWidth, color, options.Ascii)}  " +
-            $"[{theme.Accent}]{Fmt.Bytes(memory.UsedBytes)}[/][grey] / {Fmt.Bytes(memory.TotalBytes)}[/]");
+            $"[{Theme.Accent}]{Fmt.Bytes(memory.UsedBytes)}[/][{Theme.Overlay}] / {Fmt.Bytes(memory.TotalBytes)}[/]");
 
         var detail = width >= 32
-            ? $"[grey]commit[/] [{theme.Accent}]{Fmt.Bytes(memory.CommitBytes)}[/][grey] / {Fmt.Bytes(memory.CommitLimitBytes)}[/]"
-            : $"[grey]commit[/] [{theme.Accent}]{Fmt.Bytes(memory.CommitBytes)}[/]";
+            ? $"[{Theme.Overlay}]commit[/] [{Theme.Accent}]{Fmt.Bytes(memory.CommitBytes)}[/][{Theme.Overlay}] / {Fmt.Bytes(memory.CommitLimitBytes)}[/]"
+            : $"[{Theme.Overlay}]commit[/] [{Theme.Accent}]{Fmt.Bytes(memory.CommitBytes)}[/]";
 
         if (width >= 44)
         {
-            detail += $"   [grey]cache[/] [{theme.Accent}]{Fmt.Bytes(memory.CachedBytes)}[/]";
+            detail += $"   [{Theme.Overlay}]cache[/] [{Theme.Accent}]{Fmt.Bytes(memory.CachedBytes)}[/]";
         }
 
         if (sparkWidth >= 4)
         {
-            detail += $"   [{theme.Muted}]{Fmt.Spark(history.MemoryUsed.Values, sparkWidth, options.Ascii)}[/]";
+            detail += $"   [{Theme.Muted}]{Fmt.Spark(history.MemoryUsed.Values, sparkWidth, options.Ascii)}[/]";
         }
 
         var line2 = new Markup(detail);
@@ -413,31 +406,30 @@ public static class Widgets
 
     private static IRenderable BuildDiskNet(Snapshot snapshot, RenderOptions options, int width)
     {
-        var theme = options.Theme;
         var lines = new List<IRenderable>();
 
         if (snapshot.Volumes.Count > 0)
         {
             foreach (var volume in snapshot.Volumes.Take(3))
             {
-                var color = volume.UsedPercent >= 95 ? "red" : volume.UsedPercent >= 85 ? "yellow" : "green";
+                var color = volume.UsedPercent >= 95 ? Theme.Red : volume.UsedPercent >= 85 ? Theme.Yellow : Theme.Green;
                 lines.Add(new Markup(
-                    $"[grey]{Markup.Escape(volume.Name)}[/] {Fmt.Gauge(volume.UsedPercent, 10, color, options.Ascii)} " +
-                    $"[{color}]{volume.UsedPercent,3:0}%[/] [grey]{Fmt.Bytes(volume.TotalBytes - volume.FreeBytes)} / {Fmt.Bytes(volume.TotalBytes)}[/]"));
+                    $"[{Theme.Overlay}]{Markup.Escape(volume.Name)}[/] {Fmt.Gauge(volume.UsedPercent, 10, color, options.Ascii)} " +
+                    $"[{color}]{volume.UsedPercent,3:0}%[/] [{Theme.Overlay}]{Fmt.Bytes(volume.TotalBytes - volume.FreeBytes)} / {Fmt.Bytes(volume.TotalBytes)}[/]"));
             }
         }
 
         lines.Add(new Markup(
-            $"[grey]disk[/] [{theme.Accent}]R {Fmt.Rate(snapshot.DiskReadBytesPerSecond)}[/]  " +
-            $"[{theme.Accent}]W {Fmt.Rate(snapshot.DiskWriteBytesPerSecond)}[/]"));
+            $"[{Theme.Overlay}]disk[/] [{Theme.Accent}]R {Fmt.Rate(snapshot.DiskReadBytesPerSecond)}[/]  " +
+            $"[{Theme.Accent}]W {Fmt.Rate(snapshot.DiskWriteBytesPerSecond)}[/]"));
 
         if (snapshot.NetReceiveBytesPerSecond is { } rx && snapshot.NetSendBytesPerSecond is { } tx)
         {
             var arrowDown = options.Ascii ? "down" : "↓";
             var arrowUp = options.Ascii ? "up" : "↑";
             lines.Add(new Markup(
-                $"[grey]net[/]  [{theme.Accent}]{arrowDown} {Fmt.Rate(rx)}[/]  " +
-                $"[{theme.Accent}]{arrowUp} {Fmt.Rate(tx)}[/]"));
+                $"[{Theme.Overlay}]net[/]  [{Theme.Accent}]{arrowDown} {Fmt.Rate(rx)}[/]  " +
+                $"[{Theme.Accent}]{arrowUp} {Fmt.Rate(tx)}[/]"));
         }
 
         return Pane("DISK / NET", width, options.Ascii, lines.ToArray());
@@ -445,7 +437,6 @@ public static class Widgets
 
     private static IRenderable BuildTemps(Snapshot snapshot, RenderOptions options, int width)
     {
-        var theme = options.Theme;
         var thresholds = options.Config.Thresholds;
         var chips = new List<(string Label, double Value, Threshold Limits)>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -472,7 +463,7 @@ public static class Widgets
 
         if (chips.Count == 0)
         {
-            return Pane("TEMPS", width, options.Ascii, new Markup($"[{theme.Muted}]no temperature sensors[/]"));
+            return Pane("TEMPS", width, options.Ascii, new Markup($"[{Theme.Muted}]no temperature sensors[/]"));
         }
 
         var contentWidth = Math.Max(20, width - 4);
@@ -530,13 +521,11 @@ public static class Widgets
     {
         var color = Fmt.LevelColor(value, limits);
         var unit = options.Ascii ? "C" : "°";
-        return new Markup($"[grey]{Markup.Escape(label)}[/] [{color}]{value:0}{unit}[/]");
+        return new Markup($"[{Theme.Overlay}]{Markup.Escape(label)}[/] [{color}]{value:0}{unit}[/]");
     }
 
     private static IRenderable BuildProcesses(Snapshot snapshot, RenderOptions options, int width)
     {
-        var theme = options.Theme;
-
         // Sort every process, not just the CPU-trimmed list that JSON carries.
         IReadOnlyList<ProcessSample> source =
             snapshot.AllProcesses.Count > 0 ? snapshot.AllProcesses : snapshot.Processes;
@@ -563,20 +552,22 @@ public static class Widgets
         table.AddColumn(new TableColumn(string.Empty) { Width = 9, NoWrap = true, Alignment = Justify.Right });
 
         var nameWidth = Math.Max(8, width - 24);
+        var shown = 0;
         foreach (var process in ordered.Take(count))
         {
+            shown++;
             var name = Fmt.Truncate(process.Name, nameWidth, options.Ascii);
-            var color = process.CpuPercent >= 50 ? "red" : process.CpuPercent >= 10 ? "yellow" : "grey";
+            var color = process.CpuPercent >= 50 ? Theme.Red : process.CpuPercent >= 10 ? Theme.Yellow : Theme.Overlay;
 
             table.AddRow(
-                new Markup($"[white]{Markup.Escape(name)}[/]"),
+                new Markup($"[{Theme.Text}]{Markup.Escape(name)}[/]"),
                 new Markup($"[{color}]{process.CpuPercent,5:0.0}%[/]"),
-                new Markup($"[{theme.Muted}]{Fmt.Bytes(process.WorkingSetBytes)}[/]"));
+                new Markup($"[{Theme.Muted}]{Fmt.Bytes(process.WorkingSetBytes)}[/]"));
         }
 
-        if (count == 0)
+        if (shown == 0)
         {
-            table.AddRow(new Markup($"[{theme.Muted}]no processes[/]"), new Markup(string.Empty), new Markup(string.Empty));
+            table.AddRow(new Markup($"[{Theme.Muted}]no processes[/]"), new Markup(string.Empty), new Markup(string.Empty));
         }
 
         return Pane($"PROCESSES by {options.Sort.ToString().ToUpperInvariant()}", width, options.Ascii, table);
@@ -590,7 +581,6 @@ public static class Widgets
             "space pause",
             "r peaks",
             "s sort",
-            "t theme",
             "e export",
             "[ ] interval",
         };
@@ -612,8 +602,8 @@ public static class Widgets
             length += extra;
         }
 
-        var parts = kept.Select(key => $"[grey]{Markup.Escape(key)}[/]").ToList();
-        parts.Add($"[{options.Theme.Muted}]{Markup.Escape(Fmt.Truncate(interval, max, options.Ascii))}[/]");
+        var parts = kept.Select(key => $"[{Theme.Overlay}]{Markup.Escape(key)}[/]").ToList();
+        parts.Add($"[{Theme.Muted}]{Markup.Escape(Fmt.Truncate(interval, max, options.Ascii))}[/]");
 
         return new Markup(string.Join("   ", parts));
     }
@@ -655,7 +645,7 @@ public static class Widgets
     {
         Header = new PanelHeader($" {title} "),
         Border = ascii ? BoxBorder.Ascii : BoxBorder.Rounded,
-        BorderStyle = new Style(Color.Grey),
+        BorderStyle = new Style(Theme.BorderColor),
         Padding = new Padding(1, 0, 1, 0),
         Width = Math.Max(24, width),
     };

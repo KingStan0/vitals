@@ -45,6 +45,26 @@ public sealed class AppConfigTests
     }
 
     [Fact]
+    public void Legacy_theme_key_is_ignored()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"vitals-config-{Guid.NewGuid():N}.json");
+
+        try
+        {
+            File.WriteAllText(path, """{ "theme": "amber", "intervalMs": 500 }""");
+
+            var config = AppConfig.Load(path, out var warning);
+
+            Assert.Null(warning);
+            Assert.Equal(500, config.IntervalMs);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void Threshold_at_the_upper_bound_keeps_a_valid_critical_value()
     {
         var threshold = new Threshold(200, 100);

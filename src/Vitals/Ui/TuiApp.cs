@@ -87,7 +87,6 @@ public static class TuiApp
         var options = new RenderOptions
         {
             Config = config,
-            Theme = Theme.ByName(config.Theme),
             Ascii = ascii,
             Width = AnsiConsole.Profile.Width,
             Height = AnsiConsole.Profile.Height,
@@ -147,12 +146,6 @@ public static class TuiApp
                         _ => ProcessSort.Cpu,
                     };
                     SetToast($"sort: {options.Sort}");
-                    break;
-
-                case ConsoleKey.T:
-                    options.Theme = options.Theme.Next();
-                    config.Theme = options.Theme.Name;
-                    SetToast($"theme: {options.Theme.Name}");
                     break;
 
                 case ConsoleKey.E:
@@ -294,7 +287,6 @@ public static class TuiApp
         var options = new RenderOptions
         {
             Config = config,
-            Theme = Theme.ByName(config.Theme),
             Ascii = ascii,
             Width = 120,
             Height = 42,

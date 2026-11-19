@@ -64,15 +64,18 @@ public sealed class WinSource : ISensorSource
         var now = Environment.TickCount64;
         var seconds = Math.Max(0.001, (now - _previousTick) / 1000.0);
 
-        SampleCpu(builder);
+        var cpuMeasured = SampleCpu(builder);
         SampleMemory(builder);
         SampleDisks(builder, seconds);
         SampleNetwork(builder, seconds);
         SampleVolumes(builder);
 
-        builder.Readings.Add(new Reading(
-            "win/cpu/load", Name, "CPU", "Total", SensorKind.Load,
-            SnapshotBuilder.Round(builder.CpuLoadPercent, 3), "%"));
+        if (cpuMeasured)
+        {
+            builder.Readings.Add(new Reading(
+                "win/cpu/load", Name, "CPU", "Total", SensorKind.Load,
+                SnapshotBuilder.Round(builder.CpuLoadPercent, 3), "%"));
+        }
 
         if (builder.Memory is { } memory)
         {
@@ -111,12 +114,12 @@ public sealed class WinSource : ISensorSource
         _disks.Clear();
     }
 
-    private void SampleCpu(SnapshotBuilder builder)
+    private bool SampleCpu(SnapshotBuilder builder)
     {
         if (!GetSystemTimes(out var idle, out var kernel, out var user))
         {
             builder.Note("cpu load unavailable");
-            return;
+            return false;
         }
 
         var idleNow = idle.ToUInt64();
@@ -131,13 +134,17 @@ public sealed class WinSource : ISensorSource
             _previousIdle = idleNow;
             _previousKernel = kernelNow;
             _previousUser = userNow;
-            return;
+            return false;
         }
 
         var totalDelta = kernelNow - _previousKernel + (userNow - _previousUser);
         var idleDelta = idleNow - _previousIdle;
 
-        if (_previousKernel != 0 && totalDelta > 0)
+        // Without a baseline there is no CPU measurement to report; publishing
+        // 0% would look like a real reading. A zero delta (two reads inside one
+        // clock tick) still reports 0%, but only after the baseline exists.
+        var measured = _previousKernel != 0;
+        if (measured && totalDelta > 0)
         {
             builder.CpuLoadPercent = Math.Clamp((1.0 - (double)idleDelta / totalDelta) * 100.0, 0.0, 100.0);
         }
@@ -145,6 +152,7 @@ public sealed class WinSource : ISensorSource
         _previousIdle = idleNow;
         _previousKernel = kernelNow;
         _previousUser = userNow;
+        return measured;
     }
 
     private static void SampleMemory(SnapshotBuilder builder)

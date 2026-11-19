@@ -58,8 +58,6 @@ public sealed class AppConfig
 
     public bool PromptForPawnIo { get; set; } = true;
 
-    public string Theme { get; set; } = "default";
-
     public Thresholds Thresholds { get; set; } = new();
 
     [JsonIgnore]

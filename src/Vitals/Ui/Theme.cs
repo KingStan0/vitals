@@ -2,34 +2,30 @@ using Spectre.Console;
 
 namespace Vitals.Ui;
 
-public sealed class Theme
+/// <summary>
+/// The single dashboard palette: Catppuccin Mocha.
+/// https://github.com/catppuccin/catppuccin#-palette
+/// </summary>
+public static class Theme
 {
-    private Theme(string name, string accent, string muted)
-    {
-        Name = name;
-        Accent = accent;
-        Muted = muted;
-    }
+    /// <summary>Mauve, used for values and emphasis.</summary>
+    public const string Accent = "#cba6f7";
 
-    public string Name { get; }
+    /// <summary>Text, used for primary labels such as process names.</summary>
+    public const string Text = "#cdd6f4";
 
-    /// <summary>Markup colour name used for emphasis.</summary>
-    public string Accent { get; }
+    /// <summary>Subtext 0, used for secondary text.</summary>
+    public const string Muted = "#a6adc8";
 
-    /// <summary>Markup colour name used for secondary text.</summary>
-    public string Muted { get; }
+    /// <summary>Overlay 1, used for dim labels and units.</summary>
+    public const string Overlay = "#7f849c";
 
-    public static readonly Theme Default = new("default", "cyan1", "grey");
+    public const string Green = "#a6e3a1";
 
-    public static readonly Theme[] All =
-    {
-        Default,
-        new("amber", "orange1", "grey"),
-        new("mono", "white", "grey"),
-    };
+    public const string Yellow = "#f9e2af";
 
-    public static Theme ByName(string? name) =>
-        All.FirstOrDefault(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) ?? Default;
+    public const string Red = "#f38ba8";
 
-    public Theme Next() => All[(Array.IndexOf(All, this) + 1) % All.Length];
+    /// <summary>Overlay 0, used for panel borders.</summary>
+    public static readonly Color BorderColor = new(0x6c, 0x70, 0x86);
 }

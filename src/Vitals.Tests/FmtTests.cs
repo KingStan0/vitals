@@ -1,3 +1,4 @@
+using Vitals.Config;
 using Vitals.Ui;
 
 namespace Vitals.Tests;
@@ -89,7 +90,9 @@ public sealed class FmtTests
         Assert.Equal("0 B", Fmt.Bytes(double.PositiveInfinity));
         Assert.Equal(string.Empty, Fmt.Bar(50, 0, false));
         Assert.Equal(new string('-', 4), Fmt.Bar(double.NaN, 4, true));
-        Assert.Equal("n/a", Fmt.Celsius(null, false));
-        Assert.Equal("12C", Fmt.Celsius(12, true));
+        Assert.Equal($"[{Theme.Overlay}]n/a[/]", Fmt.TempMarkup(null, new Threshold(80, 95), false));
+        Assert.Equal($"[{Theme.Green}]12C[/]", Fmt.TempMarkup(12, new Threshold(80, 95), true));
+        Assert.Equal("C", Fmt.TempUnit(true));
+        Assert.Equal("°C", Fmt.TempUnit(false));
     }
 }

@@ -72,13 +72,6 @@ public sealed class CliOptions
 
             switch (arg)
             {
-                case "-h":
-                case "--help":
-                    options.ShowHelp = true;
-                    continue;
-                case "--version":
-                    options.ShowVersion = true;
-                    continue;
                 case "--json":
                     options.Json = true;
                     continue;
@@ -408,6 +401,6 @@ public sealed class CliOptions
 
         TUI KEYS
           q quit    space pause    r reset peaks    s sort processes
-          t theme   e export CSV   [ ] slower/faster refresh
+          e export CSV    [ ] slower/faster refresh
         """;
 }

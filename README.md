@@ -14,6 +14,7 @@ NDJSON, CSV recording, and a raw sensor dump you can attach to bug reports.
 
 - **Live TUI** with CPU, per-core load, GPU, memory, per-volume disk usage,
   disk/network throughput, temperatures, fans and top processes.
+- **Catppuccin Mocha** palette for the dashboard.
 - **Scriptable**: `snapshot --json`, `watch --json`, `export` to CSV.
 - **Multi-GPU aware**: all adapters are exported in JSON; the dashboard shows
   the primary (largest / most capable) GPU.
@@ -100,7 +101,7 @@ board Micro-Star International Co., Ltd. B450M-A PRO MAX II (MS-7C52)  ·  sampl
                                                                       │ opencode                   0.0%  332.3 MB     │
                                                                       │ explorer                   0.0%  317.2 MB     │
                                                                       ╰───────────────────────────────────────────────╯
-q quit   space pause   r peaks   s sort   t theme   e export   [ ] interval   interval 1000 ms
+q quit   space pause   r peaks   s sort   e export   [ ] interval   interval 1000 ms
 ```
 
 (Blank rows at the bottom of a tall terminal are trimmed here.)
@@ -211,9 +212,8 @@ when it is missing.
 | `Space` | pause/resume sampling |
 | `r` | reset CPU peak |
 | `s` | cycle process sort (CPU → memory → name) |
-| `t` | cycle theme (default → amber → mono) |
 | `e` | export the current session to CSV |
-| `[` / `]` | slower / faster refresh |
+| `[` / `]` | faster / slower refresh |
 
 ## Permissions and PawnIO
 
@@ -226,7 +226,7 @@ Without elevation or PawnIO you still get:
 
 - CPU load and per-core load
 - GPU load, clocks, fans, VRAM and usually temperatures
-- memory, volumes, disk and network throughput
+- memory, volumes and network throughput
 
 You will not get CPU package temperature/power or NCT6687D motherboard sensors.
 Missing readings are rendered as `n/a`, never as a fake `0`.
@@ -260,7 +260,6 @@ back to defaults. Invalid values are clamped.
   "historySeconds": 300,
   "ascii": false,
   "promptForPawnIo": true,
-  "theme": "default",
   "thresholds": {
     "cpuTemp": { "warn": 85, "crit": 95 },
     "gpuEdge": { "warn": 80, "crit": 90 },
@@ -285,8 +284,7 @@ The dashboard adapts below 100 columns by stacking panels in a single column.
   export (30–86400). The export buffer holds only timestamps and raw readings,
   and is capped at 6,000 frames so an extreme setting cannot exhaust memory.
   Sparklines always retain the most recent 300 samples.
-- `ascii` and `theme` — dashboard defaults; `--ascii` and the `t` key override
-  them for the current run.
+- `ascii` — dashboard default; `--ascii` overrides it for the current run.
 - `promptForPawnIo` — show the first-launch PawnIO install prompt in an
   elevated dashboard (default `true`). It never affects headless commands.
 - `thresholds` — `warn`/`crit` values used for colours; each is clamped to
@@ -451,7 +449,7 @@ src/Vitals/
   Export/       CSV writer
   Sampling/     sample engine, background sampler, history ring
   Sensors/      LHM and Win32 sources, P/Invoke, models
-  Ui/           dashboard widgets, TUI loop, theme, formatting
+  Ui/           dashboard widgets, TUI loop, Catppuccin palette, formatting
 src/Vitals.Tests/
 scripts/        publish, package, smoke, benchmark and soak helpers
 docs/sensors/   real sensor maps for specific hardware

@@ -5,7 +5,6 @@
   "historySeconds": 300,
   "ascii": false,
   "promptForPawnIo": true,
-  "theme": "default",
   "thresholds": {
     "cpuTemp": { "warn": 85, "crit": 95 },
     "gpuEdge": { "warn": 80, "crit": 90 },

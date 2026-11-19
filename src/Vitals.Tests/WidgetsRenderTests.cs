@@ -12,7 +12,6 @@ public sealed class WidgetsRenderTests
     private static RenderOptions Options(int width = 120, int height = 40, bool ascii = false) => new()
     {
         Config = new AppConfig(),
-        Theme = Theme.Default,
         Ascii = ascii,
         Width = width,
         Height = height,
@@ -130,6 +129,29 @@ public sealed class WidgetsRenderTests
         console.Write(layout);
 
         Assert.Contains("memory-hog", console.Output);
+    }
+
+    [Fact]
+    public void Empty_process_list_shows_a_placeholder()
+    {
+        var snapshot = SnapshotFixture.Create() with
+        {
+            Processes = Array.Empty<ProcessSample>(),
+            AllProcesses = Array.Empty<ProcessSample>(),
+        };
+        var options = Options();
+        var layout = Widgets.CreateLayout(options);
+        var history = new History(300);
+        history.Add(snapshot);
+
+        Widgets.Update(layout, snapshot, history, options);
+
+        var console = new TestConsole();
+        console.Profile.Width = 120;
+        console.Profile.Height = 40;
+        console.Write(layout);
+
+        Assert.Contains("no processes", console.Output);
     }
 
     [Fact]

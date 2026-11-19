@@ -197,13 +197,13 @@ public static class Fmt
     }
 
     public static string LevelColor(double value, Threshold threshold) =>
-        value >= threshold.Crit ? "red" : value >= threshold.Warn ? "yellow" : "green";
+        value >= threshold.Crit ? Theme.Red : value >= threshold.Warn ? Theme.Yellow : Theme.Green;
 
     public static string TempMarkup(double? celsius, Threshold threshold, bool ascii)
     {
         if (celsius is null)
         {
-            return "[grey]n/a[/]";
+            return $"[{Theme.Overlay}]n/a[/]";
         }
 
         var color = LevelColor(celsius.Value, threshold);
@@ -214,16 +214,6 @@ public static class Fmt
     {
         var uptime = TimeSpan.FromMilliseconds(Environment.TickCount64);
         return $"{uptime.Days}d {uptime.Hours:00}h {uptime.Minutes:00}m";
-    }
-
-    public static string Celsius(double? value, bool ascii)
-    {
-        if (value is null)
-        {
-            return "n/a";
-        }
-
-        return value.Value.ToString("0", CultureInfo.InvariantCulture) + TempUnit(ascii);
     }
 
     public static string TempUnit(bool ascii) => ascii ? "C" : "°C";

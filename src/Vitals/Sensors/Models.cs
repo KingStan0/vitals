@@ -58,16 +58,22 @@ public sealed record MemorySample(
     double CommitLimitBytes,
     double CachedBytes)
 {
-    public double UsedBytes => TotalBytes - AvailableBytes;
+    public double UsedBytes => Math.Max(0, TotalBytes - AvailableBytes);
 
-    public double UsedPercent => TotalBytes <= 0 ? 0 : UsedBytes / TotalBytes * 100.0;
+    public double UsedPercent => TotalBytes <= 0
+        ? 0
+        : Math.Clamp(UsedBytes / TotalBytes * 100.0, 0, 100);
 
-    public double CommitPercent => CommitLimitBytes <= 0 ? 0 : CommitBytes / CommitLimitBytes * 100.0;
+    public double CommitPercent => CommitLimitBytes <= 0
+        ? 0
+        : Math.Clamp(CommitBytes / CommitLimitBytes * 100.0, 0, 100);
 }
 
 public sealed record VolumeSample(string Name, string Label, double TotalBytes, double FreeBytes)
 {
-    public double UsedPercent => TotalBytes <= 0 ? 0 : (TotalBytes - FreeBytes) / TotalBytes * 100.0;
+    public double UsedPercent => TotalBytes <= 0
+        ? 0
+        : Math.Clamp((TotalBytes - FreeBytes) / TotalBytes * 100.0, 0, 100);
 }
 
 public sealed record ProcessSample(int Pid, string Name, double CpuPercent, long WorkingSetBytes);
